@@ -1,0 +1,225 @@
+import { ArmLengths, armFromHeight } from '../core/body';
+import { PhonePacket, WatchPacket } from '../core/packets';
+import {
+  AXES, Clock, DEG, G0, M3, Q4, V3, add, cross, fromThree, matFromCols, matMul, matT, matVec, mul, nrm, perp, qE,
+  qFromMat, rotAxis, sub, toThree, yawRot,
+} from '../core/vec';
+
+/* A simulated lead arm that produces exactly what the watch app and the phone page send, including a random heading
+ * for each sensor, strap tilt, wobble and noise. Used by ?sim=1, by tools/simDevices.ts and by the unit tests.
+ * Ground truth lives in the heading frame (forward = +z, up = +y, the lead arm's side = +x). */
+
+export interface ArmState { U: V3; D: V3; N: V3 }
+export type MoveName = 'hold' | 'guard' | 'jab' | 'double jab' | 'body jab' | 'hook' | 'uppercut' | 'parry';
+
+interface Key { t: number; U: V3; phi: number; ref: V3; tau?: number }
+const REF_FWD: V3 = nrm([0.35, 0.45, 0.82]);
+const REF_ACROSS: V3 = nrm([-0.7, 0.1, 0.7]);
+/** twist that puts the palm down when the arm is straight out in front */
+const TAU0 = Math.PI / 2 - Math.atan2(0.45, 0.35);
+
+const GUARD: Key = { t: 0, U: nrm([0.2, -0.85, 0.45]), phi: 125 * DEG, ref: REF_FWD };
+const at = (t: number, k: Omit<Key, 't'>): Key => ({ ...k, t });
+
+/** Keyframes relative to the move start; every move starts and ends in the guard. */
+const MOVES: Record<Exclude<MoveName, 'hold' | 'guard'>, Key[]> = {
+  jab: [
+    GUARD,
+    at(0.13, { U: nrm([0.05, 0.1, 1]), phi: 6 * DEG, ref: REF_FWD }),
+    at(0.18, { U: nrm([0.05, 0.1, 1]), phi: 6 * DEG, ref: REF_FWD }),
+    at(0.42, GUARD),
+  ],
+  'double jab': [
+    GUARD,
+    at(0.12, { U: nrm([0.05, 0.1, 1]), phi: 6 * DEG, ref: REF_FWD }),
+    at(0.3, { U: nrm([0.15, -0.5, 0.8]), phi: 60 * DEG, ref: REF_FWD }),
+    at(0.42, { U: nrm([0.05, 0.1, 1]), phi: 6 * DEG, ref: REF_FWD }),
+    at(0.5, { U: nrm([0.05, 0.1, 1]), phi: 6 * DEG, ref: REF_FWD }),
+    at(0.75, GUARD),
+  ],
+  'body jab': [
+    GUARD,
+    at(0.15, { U: nrm([0.05, -0.4, 0.92]), phi: 8 * DEG, ref: REF_FWD }),
+    at(0.2, { U: nrm([0.05, -0.4, 0.92]), phi: 8 * DEG, ref: REF_FWD }),
+    at(0.48, GUARD),
+  ],
+  hook: [
+    GUARD,
+    at(0.22, { U: nrm([0.95, 0.1, 0.15]), phi: 90 * DEG, ref: REF_ACROSS }),
+    at(0.36, { U: nrm([0.5, 0.1, 0.85]), phi: 90 * DEG, ref: REF_ACROSS }),
+    at(0.7, GUARD),
+  ],
+  uppercut: [
+    GUARD,
+    at(0.18, { U: nrm([0.1, -0.95, 0.2]), phi: 100 * DEG, ref: REF_FWD }),
+    at(0.34, { U: nrm([0.1, -0.45, 0.88]), phi: 55 * DEG, ref: REF_FWD }),
+    at(0.7, GUARD),
+  ],
+  parry: [
+    GUARD,
+    at(0.1, { U: nrm([0.45, -0.75, 0.5]), phi: 118 * DEG, ref: REF_FWD }),
+    at(0.28, GUARD),
+  ],
+};
+
+const smooth = (x: number) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
+
+function stateFrom(U: V3, phi: number, ref: V3, tau: number): ArmState {
+  U = nrm(U);
+  const h = nrm(cross(U, ref));
+  const D = nrm(rotAxis(U, h, phi));
+  const N = rotAxis(nrm(cross(h, D)), D, tau + TAU0);
+  return { U, D, N };
+}
+
+function sampleKeys(keys: Key[], t: number): { U: V3; phi: number; ref: V3; tau: number } {
+  if (t <= keys[0].t) return { U: keys[0].U, phi: keys[0].phi, ref: keys[0].ref, tau: keys[0].tau ?? 0 };
+  for (let i = 1; i < keys.length; i++) {
+    if (t <= keys[i].t) {
+      const a = keys[i - 1], b = keys[i], f = smooth((t - a.t) / (b.t - a.t));
+      return {
+        U: nrm(add(mul(a.U, 1 - f), mul(b.U, f))),
+        phi: a.phi + (b.phi - a.phi) * f,
+        ref: nrm(add(mul(a.ref, 1 - f), mul(b.ref, f))),
+        tau: (a.tau ?? 0) + ((b.tau ?? 0) - (a.tau ?? 0)) * f,
+      };
+    }
+  }
+  const k = keys[keys.length - 1];
+  return { U: k.U, phi: k.phi, ref: k.ref, tau: k.tau ?? 0 };
+}
+
+/** Straight out in front, palm flat: the calibration pose. */
+const HOLD: Key[] = [at(0, { U: [0, 0, 1], phi: 0, ref: REF_FWD })];
+
+export interface SimOptions {
+  watchAxis?: Clock;
+  phoneAxis?: Clock;
+  /** heading of the watch's world / phone's world relative to the true heading frame (rad) */
+  watchHeading?: number;
+  phoneHeading?: number;
+  /** strap tilt: angle between the phone's nominal axis and the real arm axis (deg) */
+  strapTiltDeg?: number;
+  wobbleDeg?: number;
+  noise?: number;
+  seed?: number;
+  /** seconds the arm holds the calibration pose before the script starts */
+  holdSec?: number;
+  lengths?: ArmLengths;
+}
+
+export interface ScriptItem { name: MoveName; t0: number; t1: number }
+
+export class ArmSim {
+  readonly opt: Required<Omit<SimOptions, 'lengths'>> & { lengths: ArmLengths };
+  readonly script: ScriptItem[] = [];
+  private rng: () => number;
+  private phoneRoll: number;
+  private tiltAxisDev: V3; // phone device-frame (sensor coords) arm axis, including strap tilt
+
+  constructor(o: SimOptions = {}) {
+    this.opt = {
+      watchAxis: o.watchAxis ?? '3',
+      phoneAxis: o.phoneAxis ?? '6',
+      watchHeading: o.watchHeading ?? 1.9,
+      phoneHeading: o.phoneHeading ?? -0.6,
+      strapTiltDeg: o.strapTiltDeg ?? 12,
+      wobbleDeg: o.wobbleDeg ?? 1.5,
+      noise: o.noise ?? 1,
+      seed: o.seed ?? 7,
+      holdSec: o.holdSec ?? 4,
+      lengths: o.lengths ?? armFromHeight(1.75),
+    };
+    let s = this.opt.seed >>> 0;
+    this.rng = () => { s = (s + 0x6d2b79f5) >>> 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    this.phoneRoll = this.rng() * 6.28;
+    const nominal = AXES[this.opt.phoneAxis];
+    const p = perp(toThree(nominal));
+    this.tiltAxisDev = fromThree(nrm(rotAxis(toThree(nominal), p, this.opt.strapTiltDeg * DEG)));
+    this.buildScript();
+  }
+
+  private gauss() {
+    return Math.sqrt(-2 * Math.log(this.rng() + 1e-12)) * Math.cos(2 * Math.PI * this.rng());
+  }
+
+  private buildScript() {
+    let t = this.opt.holdSec;
+    const push = (name: MoveName, dur: number) => { this.script.push({ name, t0: t, t1: t + dur }); t += dur; };
+    const order: MoveName[] = ['jab', 'jab', 'double jab', 'hook', 'uppercut', 'body jab', 'parry', 'jab', 'hook', 'double jab'];
+    for (let rep = 0; rep < 6; rep++) {
+      for (const m of order) {
+        push('guard', 0.7 + this.rng() * 0.8);
+        push(m, MOVES[m as keyof typeof MOVES].at(-1)!.t);
+      }
+    }
+    push('guard', 1);
+  }
+
+  /** The move being performed at time t (seconds), 'hold' during calibration. */
+  moveAt(t: number): MoveName {
+    if (t < this.opt.holdSec) return 'hold';
+    for (const s of this.script) if (t >= s.t0 && t < s.t1) return s.name;
+    return 'guard';
+  }
+
+  /** Ground-truth arm in the heading frame. */
+  truth(t: number): ArmState {
+    if (t < this.opt.holdSec) {
+      // ease into the calibration pose over the first second, then hold perfectly still
+      const k = sampleKeys([at(0, { U: GUARD.U, phi: GUARD.phi, ref: REF_FWD }), at(1, { U: [0, 0, 1], phi: 0, ref: REF_FWD })], t);
+      return stateFrom(k.U, k.phi, k.ref, k.tau);
+    }
+    const m = this.moveAt(t);
+    if (m === 'guard') return stateFrom(GUARD.U, GUARD.phi, GUARD.ref, 0);
+    const item = this.script.find((s) => t >= s.t0 && t < s.t1)!;
+    const k = sampleKeys(MOVES[m as keyof typeof MOVES], t - item.t0);
+    return stateFrom(k.U, k.phi, k.ref, k.tau);
+  }
+
+  /* ---- watch ---- */
+  private watchRot(t: number): { R: M3; p: V3 } {
+    const s = this.truth(t), hW = this.opt.watchHeading;
+    const D = yawRot(s.D, hW), N = yawRot(s.N, hW), U = yawRot(s.U, hW);
+    const ea = toThree(AXES[this.opt.watchAxis]), en: V3 = [0, 1, 0];
+    const W = matFromCols(D, N, cross(D, N)), E = matFromCols(ea, en, cross(ea, en));
+    const { upperArm, forearm } = this.opt.lengths;
+    const p = add(add(mul(U, upperArm), mul(D, forearm - 0.02)), mul(N, 0.025));
+    return { R: matMul(W, matT(E)), p };
+  }
+
+  watchPacket(t: number, wallMs = t * 1000): WatchPacket {
+    const h = 1e-3, { R, p } = this.watchRot(t);
+    const R1 = this.watchRot(t + h).R, R2 = this.watchRot(t - h).R;
+    const M = matMul(R1, matT(R2));
+    const w: V3 = [(M[2][1] - M[1][2]) / 2, (M[0][2] - M[2][0]) / 2, (M[1][0] - M[0][1]) / 2].map((v) => v / (2 * h)) as V3;
+    const hh = 2e-3, pa = this.watchRot(t + hh).p, pb = this.watchRot(t - hh).p;
+    const a = mul(add(sub(pa, mul(p, 2)), pb), 1 / (hh * hh));
+    const n = this.opt.noise;
+    const gl = (this.opt.wobbleDeg * DEG) * G0; // gravity leak from orientation error
+    const aW = add(add(a, [0, G0, 0]), [Math.cos(0.4 * t) * gl * 0.3, 0, Math.sin(0.4 * t) * gl * 0.3]);
+    const noise3 = (s: number): V3 => [this.gauss() * s * n, this.gauss() * s * n, this.gauss() * s * n];
+    const RT = matT(R);
+    const g = fromThree(matVec(RT, add(w, add(noise3(0.01), [0.004, 0, 0]))));
+    const acc = fromThree(matVec(RT, add(aW, noise3(0.06))));
+    const q = qE(qFromMat(R));
+    const qn: Q4 = [q[0] + this.gauss() * 0.003 * n, q[1] + this.gauss() * 0.003 * n, q[2] + this.gauss() * 0.003 * n, q[3]];
+    const l = Math.hypot(...qn);
+    return { t: wallMs, dg: 0, da: 0, q: qn.map((v) => v / l) as Q4, g, a: acc };
+  }
+
+  /* ---- phone ---- */
+  phonePacket(t: number, wallMs = t * 1000): PhonePacket {
+    const s = this.truth(t);
+    const n = this.opt.noise, wob = this.opt.wobbleDeg * DEG;
+    // the strap shifts a little during a punch
+    const wobAxis = perp(s.U);
+    const U = rotAxis(s.U, wobAxis, wob * Math.sin(1.7 * t) * n + this.gauss() * 0.002 * n);
+    const Uw = yawRot(U, this.opt.phoneHeading);
+    const ea = toThree(this.tiltAxisDev);
+    const eb = rotAxis(perp(ea), ea, this.phoneRoll);
+    const wb = rotAxis(perp(Uw), Uw, this.phoneRoll);
+    const R = matMul(matFromCols(Uw, wb, cross(Uw, wb)), matT(matFromCols(ea, eb, cross(ea, eb))));
+    return { pq: qE(qFromMat(R)), t: wallMs };
+  }
+}

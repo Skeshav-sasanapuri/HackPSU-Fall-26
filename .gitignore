@@ -27,3 +27,6 @@ watch-app/.idea/
 # Misc
 .gradle/
 *.pid
+# Jab relay / app
+.wrangler/
+.dev.vars
