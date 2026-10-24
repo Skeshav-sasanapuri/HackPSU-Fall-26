@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { NumField } from '../components/NumField';
+import { useStageConfig } from '../components/StageView';
 import { armFromHeight, cmToFtIn, ftInToCm, kgToLb, lbToKg } from '../core/body';
 import { armLengths, useProfile } from '../store';
 
@@ -15,12 +16,13 @@ export function Setup() {
   const inUnits = (m: number) => (imperial ? m * 39.3701 : m * 100);
   const fromUnits = (v: number) => (imperial ? v / 39.3701 : v / 100);
   const u = imperial ? 'in' : 'cm';
+  useStageConfig({ shot: 'hero', live: false });
 
   return (
-    <main className="page">
-      <h2 style={{ fontSize: 'clamp(54px, 9vw, 110px)', marginBottom: 28 }}>Weigh in</h2>
+    <main className="trio-page">
+      <h2 className="pagetitle inked">Weigh in</h2>
 
-      <div className="cols">
+      <div className="trio">
         <section className="card">
           <header>The boxer</header>
           <div className="body">
@@ -78,6 +80,7 @@ export function Setup() {
           </div>
         </section>
 
+        <div className="trio-gap" aria-hidden />
         <section className="card">
           <header>Your reach</header>
           <div className="body">
@@ -106,8 +109,8 @@ export function Setup() {
         </section>
       </div>
 
-      <div style={{ marginTop: 36, display: 'flex', gap: 16, alignItems: 'center' }}>
-        <button className="btn" onClick={() => { p.set({ done: true }); nav('/connect'); }}>Connect sensors</button>
+      <div className="trio-foot">
+        <button className="btn taped" onClick={() => { p.set({ done: true }); nav('/connect'); }}>Connect sensors</button>
       </div>
     </main>
   );

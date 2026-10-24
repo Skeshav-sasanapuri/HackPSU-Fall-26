@@ -30,3 +30,4 @@ watch-app/.idea/
 # Jab relay / app
 .wrangler/
 .dev.vars
+.vercel/

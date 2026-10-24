@@ -33,7 +33,7 @@ button, input, select { font: inherit; color: inherit; }
 ::selection { background: var(--red); color: var(--paper); }
 
 /* ---------- shell ---------- */
-.shell { min-height: 100vh; display: flex; flex-direction: column; }
+.shell { height: 100vh; min-height: 560px; display: flex; flex-direction: column; }
 .top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 28px; border-bottom: var(--rule); background: var(--paper); position: sticky; top: 0; z-index: 5; }
 .mark { font-family: var(--display); font-weight: 900; font-size: 34px; letter-spacing: .04em; text-decoration: none; display: flex; align-items: baseline; gap: 10px; line-height: 1; }
 .mark i { font-style: normal; display: inline-block; width: 12px; height: 12px; background: var(--red); transform: translateY(-2px); }

@@ -169,7 +169,9 @@ export class RelayHub extends DeviceHub {
 export class SimHub extends DeviceHub {
   readonly sim = true;
   readonly arm: ArmSim;
-  private t0 = 0;
+  private last = 0;
+  private scriptT = 0;
+  private holdUntil = 0;
   private timer: ReturnType<typeof setInterval> | null = null;
 
   constructor(opts: SimOptions = {}) {
@@ -177,19 +179,24 @@ export class SimHub extends DeviceHub {
     this.arm = new ArmSim(opts);
   }
 
-  /** seconds of simulated time */
-  simTime() { return (performance.now() - this.t0) / 1000; }
+  /** The simulated arm holds the calibration pose for the next `ms`, then carries on with its script. */
+  holdFor(ms: number) { this.holdUntil = performance.now() + ms; }
 
   start() {
     super.start();
-    this.t0 = performance.now();
+    this.last = performance.now();
     this.relayState = 'up';
     this.presence = { phone: true, watch: true };
     this.battery = 88;
     this.rtt = 6; this.offset = 0;
     // 25 frames/s, like the real devices: the watch sends 4 samples (100 Hz), the phone 2 (50 Hz)
     this.timer = setInterval(() => {
-      const now = performance.now(), t = (now - this.t0) / 1000;
+      const now = performance.now();
+      const holding = now < this.holdUntil;
+      if (!holding) this.scriptT += (now - this.last) / 1000;
+      this.last = now;
+      // inside the sim's opening hold (1..holdSec s) the arm is perfectly still in the calibration pose
+      const t = holding ? this.arm.opt.holdSec - 1 : this.scriptT;
       for (let i = 3; i >= 0; i--) this.ingestWatch(this.arm.watchPacket(t - i * 0.01, now - i * 10), now);
       for (let i = 1; i >= 0; i--) this.ingestPhone(this.arm.phonePacket(t - i * 0.02, now - i * 20), now);
     }, 40);

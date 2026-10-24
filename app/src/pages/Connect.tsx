@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ActivityBar, ChipState, DeviceChip } from '../components/DeviceChip';
 import { PhoneEdgePicker } from '../components/PhoneEdgePicker';
 import { Qr } from '../components/Qr';
+import { useStageConfig } from '../components/StageView';
 import { WatchPanel } from '../components/WatchPanel';
 import { publicOrigin } from '../link/config';
 import { useHubStatus } from '../hubContext';
@@ -13,6 +15,8 @@ export function Connect() {
   const setProfile = useProfile((p) => p.set);
   const status = useHubStatus();
   const [copied, setCopied] = useState(false);
+  const nav = useNavigate();
+  useStageConfig({ shot: 'hero', live: false });
 
   const url = `${publicOrigin()}/p/${code}`;
   const pretty = url.replace(/^https?:\/\//, '');
@@ -28,14 +32,14 @@ export function Connect() {
   };
 
   return (
-    <main className="page">
-      <h2 style={{ fontSize: 'clamp(54px, 9vw, 110px)', marginBottom: 28 }}>Strap in</h2>
+    <main className="trio-page">
+      <h2 className="pagetitle inked">Strap in</h2>
 
       {status.relay === 'down' && !status.sim && (
         <div className="msg" style={{ marginBottom: 20 }}>Can't reach the relay. Retrying. If this stays, check the internet connection.</div>
       )}
 
-      <div className="cols">
+      <div className="trio">
         <section className="card">
           <header>Phone · upper arm</header>
           <div className="body stack">
@@ -62,16 +66,18 @@ export function Connect() {
           </div>
         </section>
 
+        <div className="trio-gap" aria-hidden />
         <WatchPanel session={code} status={status} />
       </div>
 
       {phoneUp && watchUp && (
-        <div className="ready">
+        <div className="ready trio-foot">
           <span className="stamp">Both live</span>
           <div>
             <b>Both sensors are streaming.</b>
-            <div className="hint" style={{ marginTop: 2 }}>Move each arm and watch its bar jump. Next comes calibration.</div>
+            <div className="hint" style={{ marginTop: 2 }}>Move your arm and watch both bars jump. Then calibrate.</div>
           </div>
+          <button className="btn" style={{ marginLeft: 'auto' }} onClick={() => nav('/calibrate')}>Calibrate</button>
         </div>
       )}
     </main>

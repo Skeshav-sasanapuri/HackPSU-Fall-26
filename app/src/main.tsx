@@ -3,6 +3,7 @@ import '@fontsource/big-shoulders-display/800';
 import '@fontsource/big-shoulders-display/900';
 import '@fontsource-variable/libre-franklin';
 import './styles.css';
+import './comic.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';

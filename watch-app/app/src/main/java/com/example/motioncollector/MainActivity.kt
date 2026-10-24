@@ -48,7 +48,7 @@ import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 // >>> EDIT ONCE after deploying the relay: its https address, no trailing slash. <<<
-const val RELAY = "https://jab-relay.REPLACE-ME.workers.dev"
+const val RELAY = "https://jab-relay.jab-relay.workers.dev"
 
 // Leave "" for normal use. To use the old local kit (laptop/server.py, no pairing) set its address, e.g.
 // "ws://192.168.1.20:8770/ws?role=watch".
