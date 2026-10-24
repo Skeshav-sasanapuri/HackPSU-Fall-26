@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Phone sensor</title>
+<style>
+:root{--bg:#0e131b;--panel:#17202c;--tx:#e8eef6;--mu:#8b9bb0;--ok:#3ddc97;--bad:#ff6b6b;--warn:#ffb454;--acc:#6ea8ff}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--tx);font:500 16px/1.45 system-ui,sans-serif}
+main{max-width:520px;margin:0 auto;padding:18px 16px 40px}
+h1{font-size:22px;margin:4px 0 14px}
+.card{background:var(--panel);border-radius:14px;padding:14px 16px;margin-bottom:12px}
+.big{font-size:20px;font-weight:700}
+.kv{display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid #ffffff14;font-size:15px}.kv:first-child{border:0}.kv span{color:var(--mu)}
+button{width:100%;background:var(--acc);color:#07101f;border:0;border-radius:12px;padding:16px;font:700 18px system-ui;margin-top:6px}
+button:disabled{opacity:.4}
+.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+small,p{color:var(--mu);font-size:14px}
+code{background:#0006;padding:1px 6px;border-radius:6px;color:#cfe}
+</style>
+</head>
+<body>
+<main>
+ <h1>Phone as upper-arm sensor</h1>
+ <div class="card">
+  <div class="big" id="status">Not started</div>
+  <p id="hint" style="margin:6px 0 0">Strap the phone on your upper arm (screen facing out, top edge toward your <b>shoulder</b>), then tap Start. Keep this screen on and in front.</p>
+ </div>
+ <button id="start">Start sensing</button>
+ <div class="card" style="margin-top:12px">
+  <div class="kv"><span>Relay (laptop)</span><b id="vRelay">–</b></div>
+  <div class="kv"><span>Orientation sensor</span><b id="vSensor">–</b></div>
+  <div class="kv"><span>Rate</span><b id="vHz">–</b></div>
+  <div class="kv"><span>Rotation convention</span><b id="vConv">–</b></div>
+  <div class="kv"><span>Screen kept awake</span><b id="vWake">–</b></div>
+ </div>
+ <p id="secure" class="bad" style="display:none"></p>
+ <p>Tip: put the phone in a snug sports armband. If it slides or flops during a punch the readings will be wrong.</p>
+</main>
+<script src="shared.js"></script>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+let ws=null,sensor=null,acc=null,sent=0,sentWin=0,hz=0,conv=null,scoreA=0,scoreB=0,nScore=0,wake=null,lastQ=null,started=false;
+const setS=(t,c='')=>{$('status').textContent=t;$('status').className='big '+c};
+
+if(!window.isSecureContext){
+ const e=$('secure');e.style.display='';
+ e.innerHTML='This page is not a secure context, so Chrome will not give it the motion sensors. Fix, either way:<br>1) On the laptop run <code>adb reverse tcp:8770 tcp:8770</code> (phone connected by USB or wireless debugging), then on the phone open <code>http://localhost:8770/phone.html</code>.<br>2) Or in Chrome on the phone open <code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code>, add <code>http://'+location.host+'</code>, enable it, relaunch Chrome.';
+ setS('Needs a secure address','bad');
+}
+
+function connect(){
+ ws=new WebSocket(`ws://${location.host}/ws?role=phone`);
+ ws.onopen=()=>{$('vRelay').textContent='connected';$('vRelay').className='ok'};
+ ws.onclose=()=>{$('vRelay').textContent='reconnecting…';$('vRelay').className='warn';setTimeout(connect,1000)};
+}
+connect();
+
+// The Generic Sensor quaternion should be device->world (same as Android's rotation vector). Do not assume it:
+// compare with the accelerometer (which includes gravity, so it points "up" in the device frame) and pick the convention that matches.
+const conj=q=>[-q[0],-q[1],-q[2],q[3]];
+function checkConv(g,q){
+ const m=Math.hypot(g[0],g[1],g[2]);if(m<8.3||m>11.3)return;           // only while the phone is not accelerating much
+ const gn=[g[0]/m,g[1]/m,g[2]/m],upA=qrot(conj(q),[0,0,1]),upB=qrot(q,[0,0,1]);
+ scoreA+=dot(gn,upA);scoreB+=dot(gn,upB);nScore++;
+ if(conv==null&&nScore>=40){
+  const a=scoreA/nScore,b=scoreB/nScore;
+  if(Math.max(a,b)>.85){conv=a>=b?'A':'B';$('vConv').textContent=conv==='A'?'device→world (checked against gravity)':'inverted, corrected (checked against gravity)';$('vConv').className='ok'}
+  else{nScore=scoreA=scoreB=0;$('vConv').textContent='cannot verify yet (hold the phone fairly still for a second)';$('vConv').className='warn'}
+ }
+}
+
+async function start(){
+ if(started)return;
+ if(!window.isSecureContext){return}
+ if(!('RelativeOrientationSensor' in window)){setS('This browser has no RelativeOrientationSensor. Use Chrome on Android.','bad');return}
+ try{
+  for(const n of ['accelerometer','gyroscope']){try{const r=await navigator.permissions.query({name:n});if(r.state==='denied'){setS('Motion sensors are blocked for this site (Chrome > Site settings > Motion sensors).','bad');return}}catch(e){}}
+  sensor=new RelativeOrientationSensor({frequency:60,referenceFrame:'device'});
+  acc=new Accelerometer({frequency:30,referenceFrame:'device'});
+  sensor.onerror=e=>{setS('Orientation sensor error: '+(e.error&&e.error.name||'unknown'),'bad');$('vSensor').textContent='error'};
+  acc.onerror=()=>{};
+  acc.onreading=()=>{if(lastQ)checkConv([acc.x,acc.y,acc.z],lastQ)};
+  sensor.onreading=()=>{
+   const q=sensor.quaternion;if(!q)return;lastQ=[q[0],q[1],q[2],q[3]];
+   if(conv==null&&performance.now()-t0>6000)conv='A';          // could not verify: assume the standard convention
+   if(conv==null)return;
+   const out=conv==='B'?conj(lastQ):lastQ;
+   if(ws&&ws.readyState===1){ws.send(JSON.stringify({pq:out.map(v=>+v.toFixed(5)),t:+performance.now().toFixed(1)}));sent++;sentWin++}
+  };
+  const t0=performance.now();
+  sensor.start();acc.start();started=true;
+  $('vSensor').textContent='running';$('vSensor').className='ok';
+  setS('Sensing. Leave this screen open.','ok');
+  $('start').disabled=true;
+  try{wake=await navigator.wakeLock.request('screen');$('vWake').textContent='yes';$('vWake').className='ok'}catch(e){$('vWake').textContent='no (keep the screen on yourself)';$('vWake').className='warn'}
+ }catch(e){setS('Could not start: '+e.message,'bad')}
+}
+$('start').onclick=start;
+setInterval(()=>{hz=sentWin;sentWin=0;$('vHz').textContent=started?hz+' Hz':'–'},1000);
+document.addEventListener('visibilitychange',async()=>{
+ if(document.visibilityState==='visible'&&started){try{wake=await navigator.wakeLock.request('screen');$('vWake').textContent='yes'}catch(e){}}
+ if(document.visibilityState==='hidden'&&started)setS('Page hidden: sensing pauses. Bring it back to the front.','warn');
+});
+</script>
+</body>
+</html>

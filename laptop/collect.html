@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Motion Collector</title>
+<style>
+:root{--bg:#0b0e14;--panel:#121722;--panel2:#171e2c;--line:#222b3d;--tx:#e8edf6;--mu:#8a96ad;--ok:#3ddc97;--warn:#ffb454;--bad:#ff5d6c;--acc:#6ea8ff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,Segoe UI,Roboto,sans-serif}
+header{display:flex;align-items:center;gap:14px;padding:12px 20px;border-bottom:1px solid var(--line)}
+header h1{font-size:15px;margin:0;font-weight:650;letter-spacing:.2px}header .sp{flex:1}
+.chip{padding:3px 10px;border-radius:99px;background:var(--panel2);border:1px solid var(--line);color:var(--mu);font-size:12px}
+.chip.ok{color:var(--ok);border-color:#1f5b44}.chip.bad{color:var(--bad);border-color:#5b2630}.chip.warn{color:var(--warn);border-color:#5b4526}
+main{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(320px,1fr);gap:16px;padding:16px 20px;max-width:1500px;margin:0 auto}
+@media(max-width:980px){main{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.card h2{font-size:12px;text-transform:uppercase;letter-spacing:1.2px;color:var(--mu);margin:0 0 10px;font-weight:600}
+.stage{position:relative;background:#000;border-radius:14px;overflow:hidden;aspect-ratio:16/9;border:1px solid var(--line)}
+.stage video,.stage canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.stage .hud{position:absolute;left:0;right:0;bottom:0;padding:14px 18px;background:linear-gradient(transparent,rgba(0,0,0,.82));transform:none}
+.big{font-size:26px;font-weight:700;line-height:1.15}.txt{font-size:16px;color:#cfd8ea;margin-top:4px;max-width:900px}
+.bar{height:6px;background:#ffffff1f;border-radius:9px;margin-top:10px;overflow:hidden}.bar i{display:block;height:100%;width:0;background:var(--acc);transition:width .1s linear}
+.flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .25s}
+.rec{position:absolute;top:12px;left:14px;display:none;align-items:center;gap:8px;background:#000a;padding:4px 10px;border-radius:99px;font-weight:600}
+.rec b{width:10px;height:10px;border-radius:50%;background:var(--bad);animation:bl 1s infinite}@keyframes bl{50%{opacity:.25}}
+.checks{display:grid;gap:6px}.checks div{display:flex;gap:10px;align-items:center;padding:6px 10px;background:var(--panel2);border-radius:9px}
+.checks .d{width:9px;height:9px;border-radius:50%;background:var(--mu)}.checks .ok .d{background:var(--ok)}.checks .bad .d{background:var(--bad)}.checks .warn .d{background:var(--warn)}
+.checks span.v{margin-left:auto;color:var(--mu);font-variant-numeric:tabular-nums}
+label{display:block;font-size:12px;color:var(--mu);margin:8px 0 3px}select,input[type=text],textarea{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--tx);border-radius:8px;padding:7px 9px;font:inherit}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+button{background:var(--acc);color:#07101f;border:0;border-radius:10px;padding:11px 16px;font:inherit;font-weight:650;cursor:pointer}button:disabled{opacity:.35;cursor:not-allowed}
+button.sec{background:var(--panel2);color:var(--tx);border:1px solid var(--line)}
+.btns{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+.small{font-size:12px;color:var(--mu)}pre{white-space:pre-wrap;font:12px/1.5 ui-monospace,Consolas,monospace;color:#c8d2e6;margin:8px 0 0}
+.verdict{font-size:20px;font-weight:700}.verdict.PASS{color:var(--ok)}.verdict.CHECK,.verdict.UNKNOWN{color:var(--warn)}.verdict.FAIL{color:var(--bad)}
+ol.plan{margin:0;padding-left:20px;color:var(--mu)}ol.plan li{padding:1px 0}ol.plan li.on{color:var(--tx);font-weight:650}ol.plan li.done{color:#4b5873;text-decoration:line-through}
+</style></head><body>
+<header><h1>Motion Collector</h1><span class="chip" id="cRelay">relay</span><span class="chip" id="cWatch">watch</span><span class="chip" id="cCam">camera</span><span class="sp"></span><span class="small" id="cSess"></span></header>
+<main>
+ <section>
+  <div class="stage" id="stage"><video id="video" playsinline muted></video><canvas id="overlay"></canvas><div class="flash" id="flash"></div>
+   <div class="rec" id="recTag"><b></b><span id="recTime">REC</span></div>
+   <div class="hud"><div class="big" id="stepTitle">Set up, then press Start</div><div class="txt" id="stepText">Put the camera 2 m away, about 45&deg; to your watch side, so your whole arm is always in view.</div><div class="bar"><i id="bar"></i></div></div>
+  </div>
+  <div class="card" style="margin-top:14px" id="resultCard" hidden><h2>Result of the alignment check</h2><div class="verdict" id="verdict"></div><pre id="report"></pre></div>
+ </section>
+ <aside style="display:grid;gap:14px;align-content:start">
+  <div class="card"><h2>Before you start</h2><div class="checks" id="checks"></div></div>
+  <div class="card"><h2>Session</h2>
+   <div class="row2"><div><label>File name</label><input type="text" id="name"></div><div><label>Camera position</label><select id="cam"><option value="front-45-watch-side">45&deg; front, watch side</option><option value="side-90-watch-side">90&deg; side, watch side</option><option value="front">straight in front</option><option value="other">other</option></select></div></div>
+   <div class="row2"><div><label>Strap / wear label (change when you re-strap)</label><input type="text" id="strap" value="A"></div><div><label>Optional activity block</label><select id="act"><option value="golf swing">golf swing</option><option value="freestyle swimming stroke">swimming stroke</option><option value="guitar strumming">guitar strumming</option><option value="basketball shot">basketball shot</option><option value="tennis forehand">tennis forehand</option><option value="">none</option></select></div></div>
+   <div class="row2"><div><label>Watch on</label><select id="side"><option value="left">left wrist</option><option value="right">right wrist</option></select></div><div><label>Strap axis (clock number toward fingers)</label><select id="axis"><option>3</option><option>9</option><option>12</option><option>6</option></select></div></div>
+   <div class="row2"><div><label>Pose model</label><select id="pmodel"><option value="pose_landmarker_full.task">full (faster)</option><option value="pose_landmarker_heavy.task">heavy (more accurate)</option></select></div><div><label>Voice prompts</label><select id="voice"><option value="1">on</option><option value="0">off</option></select></div></div>
+   <label>Notes</label><input type="text" id="notes" placeholder="long sleeves, tight strap, ...">
+   <div class="btns"><button id="start" disabled>Start session</button><button class="sec" id="abort" disabled>Abort</button><label class="small" style="margin:0;align-self:center"><input type="checkbox" id="force"> start even if checks fail</label></div>
+   <div class="small" style="margin-top:8px" id="total"></div>
+  </div>
+  <div class="card"><h2>This session</h2><ol class="plan" id="plan"></ol></div>
+ </aside>
+</main>
+<script src="shared.js"></script>
+<script>
+'use strict';
+const Q=new URLSearchParams(location.search),FAKE=Q.has('fake'),QUICK=Q.has('quick');
+const $=id=>document.getElementById(id);
+const store={get(k,d){try{return localStorage.getItem('mc_'+k)??d}catch(e){return d}},set(k,v){try{localStorage.setItem('mc_'+k,v)}catch(e){}}};
+for(const id of ['cam','strap','act','side','axis','pmodel','voice','notes']){const el=$(id);el.value=store.get(id,el.value);el.onchange=()=>store.set(id,el.value)}
+
+/* ---------------- the session script ---------------- */
+let SCRIPT=null;   // loaded from session_script.json (the same file collect_window.py uses)
+function script(){
+ if(!SCRIPT)return [];
+ if(QUICK)return SCRIPT.quick.map(x=>{const [id,d]=x.split(':');return {id,dur:+d,pre:0,title:id,text:'(quick test mode)',cues:id.startsWith('sync')?[1.5,3.5,5.5]:null}});
+ const act=$('act').value,steps=SCRIPT.steps.slice();
+ if(act){const a=SCRIPT.activity;steps.push({...a,id:a.id.replace('{ACTID}',act.split(' ')[0]),title:a.title.replace('{ACT}',act),text:a.text.replace('{ACT}',act)})}
+ return steps.concat(SCRIPT.after_activity);
+}
+function renderPlan(){
+ const s=script(),tot=s.reduce((a,x)=>a+x.dur+x.pre,0);
+ $('plan').innerHTML=s.map((x,i)=>`<li id="p${i}">${x.title} <span class="small">(${x.dur}s)</span></li>`).join('');
+ $('total').textContent=`About ${Math.round(tot/60*10)/10} minutes. The voice reads each instruction; the screen shows it too.`;
+}
+$('act').addEventListener('change',renderPlan);
+fetch('/session_script.json').then(r=>r.json()).then(j=>{SCRIPT=j;renderPlan()});
+
+/* ---------------- state ---------------- */
+const S={relay:false,watch:false,hz:0,baroT:0,baro:null,hr:null,bat:null,pongs:[],fps:0,vis:0,visHist:[],camReady:false,delegate:'',lastPacket:0};
+const REC={on:false,watch:[],baro:[],sync:[],pose:[],hr:[],marks:[],t0:0};
+const syncAll=[];let truth=null;
+
+const link=new WatchLink(`ws://${location.host}/ws`,{
+ onStatus:o=>{Object.assign(S,o)},
+ onPacket:(m,now)=>{
+  S.lastPacket=now;
+  if(REC.on)REC.watch.push([m.t,m.dg??0,m.da??0,...m.q.map(v=>+v.toFixed(6)),...m.g.map(v=>+v.toFixed(5)),...m.a.map(v=>+v.toFixed(4)),+now.toFixed(2)]);
+ },
+ onPong:p=>{syncAll.push([p.id,+p.t0.toFixed(3),+p.t1.toFixed(3),p.tw]);S.pongs.push(p.t1-p.t0);if(S.pongs.length>30)S.pongs.shift()},
+ onOther:(m,now)=>{
+  if(m.p!==undefined){S.baro=m.p;S.baroT=now;if(REC.on)REC.baro.push([m.tp,m.p,+now.toFixed(2)])}
+  else if(m.hr!==undefined){S.hr=m.hr;if(REC.on)REC.hr.push([+now.toFixed(1),m.hr])}
+  else if(m.bat!==undefined)S.bat=m.bat;
+  else if(m.truth)truth=m.truth;
+ }});
+
+/* ---------------- camera + pose ---------------- */
+const video=$('video'),cv=$('overlay'),cx=cv.getContext('2d');
+let landmarker=null,lastTs=0,frames=[],fakeRc=null;
+const sideIds=()=>SIDE_IDS[$('side').value];
+async function startCamera(){
+ if(FAKE){S.camReady=true;S.delegate='simulated';startFakePose();return}
+ try{
+  const stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:1280},height:{ideal:720},frameRate:{ideal:30}},audio:false});
+  video.srcObject=stream;await video.play();
+  const {lmk,delegate}=await loadPoseLandmarker($('pmodel').value);landmarker=lmk;S.delegate=delegate;S.camReady=true;
+  const tick=(now,md)=>{onFrame(now,md);video.requestVideoFrameCallback(tick)};video.requestVideoFrameCallback(tick);
+ }catch(e){console.error(e);$('stepText').textContent='Camera / MediaPipe problem: '+e.message+' (is the pose model downloaded into laptop/assets? see the server window)'}
+}
+function onFrame(now,md){
+ if(!landmarker||video.readyState<2)return;
+ const ts=Math.max(lastTs+1,Math.round(now));lastTs=ts;
+ let res;try{res=landmarker.detectForVideo(video,ts)}catch(e){return}
+ const row=poseRow(res,now,md&&md.captureTime,md&&md.mediaTime);
+ handleRow(row,res.landmarks&&res.landmarks[0],now);
+}
+function handleRow(row,img,now){
+ frames.push(now);while(frames.length&&now-frames[0]>2000)frames.shift();S.fps=frames.length/2;
+ if(!row){S.visHist.push(0)}else{
+  const [s,e,w]=sideIds().map(k=>LM.indexOf(k)),vv=i=>row[3+6*i+3];
+  S.visHist.push(Math.min(vv(s),vv(e),vv(w)));
+  if(REC.on)REC.pose.push(row);
+ }
+ while(S.visHist.length>30)S.visHist.shift();
+ S.vis=S.visHist.reduce((a,b)=>a+b,0)/Math.max(1,S.visHist.length);
+ draw(img);
+}
+function draw(img){
+ if(cv.width!==cv.clientWidth*1||cv.height!==cv.clientHeight*1){cv.width=cv.clientWidth;cv.height=cv.clientHeight}
+ cx.clearRect(0,0,cv.width,cv.height);if(!img)return;
+ const vw=video.videoWidth||cv.width,vh=video.videoHeight||cv.height,sc=Math.max(cv.width/vw,cv.height/vh),ox=(cv.width-vw*sc)/2,oy=(cv.height-vh*sc)/2;
+ const P=i=>[ox+img[i].x*vw*sc,oy+img[i].y*vh*sc];
+ const [s,e,w,pk,ix,th]=sideIds();
+ cx.lineWidth=5;cx.lineCap='round';
+ const seg=(a,b,c)=>{cx.strokeStyle=c;cx.beginPath();cx.moveTo(...P(a));cx.lineTo(...P(b));cx.stroke()};
+ seg(11,12,'#ffffff55');seg(11,23,'#ffffff33');seg(12,24,'#ffffff33');seg(23,24,'#ffffff33');
+ seg(s,e,'#6ea8ff');seg(e,w,'#3ddc97');seg(w,ix,'#ffb454');seg(w,pk,'#ffb454');
+ cx.fillStyle='#fff';for(const i of [s,e,w]){const [x,y]=P(i);cx.beginPath();cx.arc(x,y,6,0,7);cx.fill()}
+}
+/* simulated camera for testing the whole chain without a webcam: landmarks built from the fake watch's truth */
+function startFakePose(){
+ const R3=(a,b)=>a.map(r=>b[0].map((_,j)=>r[0]*b[0][j]+r[1]*b[1][j]+r[2]*b[2][j]));
+ const Ry=a=>[[Math.cos(a),0,Math.sin(a)],[0,1,0],[-Math.sin(a),0,Math.cos(a)]],Rx=a=>[[1,0,0],[0,Math.cos(a),-Math.sin(a)],[0,Math.sin(a),Math.cos(a)]];
+ fakeRc=R3(Rx(.25),Ry(.7));const toCam=v=>{const f=[v[0],-v[1],-v[2]];return fakeRc.map(r=>r[0]*f[0]+r[1]*f[1]+r[2]*f[2])};
+ const g=()=>Math.sqrt(-2*Math.log(Math.random()+1e-12))*Math.cos(2*Math.PI*Math.random());
+ setInterval(()=>{
+  if(!truth)return;const u=truth.u,d=truth.d,n=truth.n;
+  const el=mul(u,.3),wr=add(el,mul(d,.26)),ix=add(wr,add(mul(d,.07),mul(n,.02))),pk=add(wr,add(mul(d,.06),mul(n,-.025))),th=add(wr,add(mul(d,.04),mul(n,.03)));
+  const L=[[0,.1,0],[0,0,0],[.38,0,0],el,[.48,-.3,0],wr,[.38,-.5,.1],pk,pk,ix,ix,th,th,[.1,-.5,0],[.28,-.5,0]];
+  const lag=60;
+  const row=[0,-1,0];const img=[];
+  for(let i=0;i<15;i++){const c=toCam(L[i]);row.push(r4(c[0]+g()*.01),r4(c[1]+g()*.01),r4(c[2]+g()*.025),.96,r4(.5+c[0]*.3),r4(.5+c[1]*.3));img.push({x:.5+c[0]*.3,y:.5+c[1]*.3})}
+  const full=[];for(let i=0;i<33;i++)full.push({x:.5,y:.5});LM.forEach((k,i)=>full[k]=img[i]);
+  setTimeout(()=>{const now=performance.now();row[0]=+now.toFixed(2);handleRow(row,full,now)},lag);
+ },33);
+}
+
+/* ---------------- audio / voice ---------------- */
+let actx=null;
+function beep(f=880,d=.12,v=.25){try{actx=actx||new AudioContext();const o=actx.createOscillator(),g=actx.createGain();o.frequency.value=f;g.gain.value=v;o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+d)}catch(e){}}
+function say(t){if($('voice').value!=='1'||!window.speechSynthesis)return;try{speechSynthesis.cancel();speechSynthesis.speak(new SpeechSynthesisUtterance(t))}catch(e){}}
+function flash(){const f=$('flash');f.style.transition='none';f.style.opacity=.55;requestAnimationFrame(()=>{f.style.transition='opacity .3s';f.style.opacity=0})}
+
+/* ---------------- checks ---------------- */
+function offsetNow(){return S.pongs.length>=3?Math.min(...S.pongs):null}
+function checks(){
+ const c=[];const age=performance.now()-S.lastPacket;
+ const add=(ok,label,val,need=true)=>c.push({ok,label,val,need});
+ add(S.relay,'Laptop relay','server.py');
+ add(S.watch&&age<1000,'Watch streaming',S.watch?`${link.hz.toFixed(0)} Hz`:'start the watch app');
+ add(link.hz>=70,'Watch rate >= 70 Hz',link.hz.toFixed(0)+' Hz');
+ add(performance.now()-S.baroT<2000,'Barometer',S.baro?S.baro.toFixed(2)+' hPa':'none',false);
+ const rtt=offsetNow();add(rtt!=null&&rtt<40,'Clock sync (ping/pong)',rtt==null?'waiting':`best round trip ${rtt.toFixed(0)} ms`);
+ add(S.camReady&&S.fps>=12,'Camera + pose',S.camReady?`${S.fps.toFixed(0)} fps (${S.delegate})`:'loading...');
+ add(S.vis>=.6,'Whole arm visible',`${(S.vis*100).toFixed(0)}%`);
+ return c;
+}
+function renderChecks(){
+ const c=checks();
+ $('checks').innerHTML=c.map(x=>`<div class="${x.ok?'ok':x.need?'bad':'warn'}"><i class="d"></i>${x.label}<span class="v">${x.val}</span></div>`).join('');
+ const good=c.filter(x=>x.need).every(x=>x.ok);
+ $('start').disabled=REC.on||!(good||$('force').checked);
+ $('abort').disabled=!REC.on;
+ const chip=(id,ok,t)=>{const e=$(id);e.textContent=t;e.className='chip '+(ok?'ok':'bad')};
+ chip('cRelay',S.relay,S.relay?'relay ok':'relay down');
+ chip('cWatch',S.watch,S.watch?`watch ${link.hz.toFixed(0)} Hz${S.hr?' - '+S.hr+' bpm':''}${S.bat!=null?' - '+S.bat+'%':''}`:'watch not connected');
+ chip('cCam',S.camReady&&S.fps>=12,S.camReady?`camera ${S.fps.toFixed(0)} fps`:'camera loading');
+}
+setInterval(renderChecks,400);
+
+/* ---------------- running a session ---------------- */
+let run=null;
+const mark=(name,k)=>REC.marks.push({r:+performance.now().toFixed(2),k,name});
+function startSession(){
+ const steps=script();
+ REC.on=true;REC.watch=[];REC.baro=[];REC.pose=[];REC.hr=[];REC.marks=[];REC.t0=performance.now();
+ REC.startedISO=new Date().toISOString();REC.settings={side:$('side').value,axis:$('axis').value,camera:$('cam').value,strap:$('strap').value,notes:$('notes').value,pose_model:FAKE?'simulated':$('pmodel').value,activity:$('act').value};
+ $('resultCard').hidden=true;$('recTag').style.display='flex';
+ if(FAKE)link.send({cmd:'sim_start'});
+ try{navigator.wakeLock&&navigator.wakeLock.request('screen').catch(()=>{})}catch(e){}
+ run={steps,i:-1,phase:'',t:performance.now()};nextStep();
+ run.timer=setInterval(tick,50);
+}
+function nextStep(){
+ if(run.i>=0)$('p'+run.i).className='done';
+ run.i++;
+ if(run.i>=run.steps.length){return finish()}
+ const s=run.steps[run.i];$('p'+run.i).className='on';
+ $('stepTitle').textContent=s.title;$('stepText').textContent=s.text;
+ if(s.pre>0){run.phase='pre';run.t=performance.now();say(s.title+'. '+s.text);beep(520,.15)}
+ else go();
+}
+function go(){
+ const s=run.steps[run.i];run.phase='go';run.t=performance.now();run.cue=0;
+ mark(s.id,'start');beep(1040,.18);if(s.pre>0)say('Go');
+}
+function tick(){
+ const s=run.steps[run.i],el=(performance.now()-run.t)/1000;
+ $('recTime').textContent='REC '+fmt((performance.now()-REC.t0)/1000);
+ if(run.phase==='pre'){
+  $('bar').style.width='0';$('bar').style.background='var(--warn)';
+  const left=Math.ceil(s.pre-el);$('stepTitle').textContent=`${s.title}  -  starting in ${Math.max(left,0)}`;
+  if(el>=s.pre){$('stepTitle').textContent=s.title;go()}
+ }else{
+  $('bar').style.background='var(--acc)';$('bar').style.width=Math.min(100,el/s.dur*100)+'%';
+  if(s.cues&&run.cue<s.cues.length&&el>=s.cues[run.cue]){run.cue++;beep(1400,.09,.4);flash()}
+  if(el>=s.dur){mark(s.id,'end');nextStep()}
+ }
+}
+const fmt=t=>`${Math.floor(t/60)}:${String(Math.floor(t%60)).padStart(2,'0')}`;
+function abort(){if(!run)return;clearInterval(run.timer);run=null;REC.on=false;$('recTag').style.display='none';$('stepTitle').textContent='Aborted - nothing saved';$('stepText').textContent='Press Start session to begin again.';document.querySelectorAll('#plan li').forEach(l=>l.className='')}
+async function finish(){
+ clearInterval(run.timer);run=null;REC.on=false;$('recTag').style.display='none';
+ beep(660,.3);say('Done. Saving.');$('bar').style.width='100%';
+ $('stepTitle').textContent='Saving and checking the alignment...';$('stepText').textContent='';
+ const t0=REC.t0-15000;
+ const doc={meta:{app:'motion-collector',version:1,session:$('name').value,started:REC.startedISO,...REC.settings,
+   watch_cols:['t','dg','da','qx','qy','qz','qw','gx','gy','gz','ax','ay','az','r'],pose_cols:['r','ct','mt','per landmark: wx wy wz vis ix iy'],landmarks:LM,
+   baro_hz:null,camera_fps:S.fps,delegate:S.delegate,user_agent:navigator.userAgent},
+  watch:REC.watch,baro:REC.baro,hr:REC.hr,pose:REC.pose,marks:REC.marks,sync:syncAll.filter(p=>p[1]>=t0)};
+ let out;
+ try{
+  const r=await fetch('/api/save?name='+encodeURIComponent($('name').value),{method:'POST',body:JSON.stringify(doc)});
+  out=await r.json();
+ }catch(e){out={ok:false,report:{verdict:'FAIL',flags:['could not save: '+e.message],text:''}}}
+ const rep=out.report||{verdict:'UNKNOWN',flags:[],text:''};
+ $('resultCard').hidden=false;$('verdict').textContent=`${out.ok?'Saved as '+out.name+'.json':'NOT saved'} - ${rep.verdict}`;$('verdict').className='verdict '+rep.verdict;
+ $('report').textContent=(rep.flags&&rep.flags.length?'Problems:\n - '+rep.flags.join('\n - ')+'\n\n':'')+(rep.text||'');
+ $('stepTitle').textContent=rep.verdict==='PASS'?'Session saved. Aligned and usable.':'Session saved - read the check on the right';
+ $('stepText').textContent=rep.verdict==='PASS'?'Take a break, re-strap if the plan says so, and start the next one.':'If the verdict is not PASS, repeat this session (see the notes in README).';
+ document.querySelectorAll('#plan li').forEach(l=>l.className='');
+ refreshName();
+}
+async function refreshName(){try{const j=await (await fetch('/api/next')).json();$('name').value=j.name;$('cSess').textContent=j.existing.length?`recorded so far: ${j.existing.join(', ')}`:'no sessions recorded yet'}catch(e){$('name').value='s01'}}
+$('start').onclick=startSession;$('abort').onclick=abort;refreshName();startCamera();
+if(FAKE||QUICK){window.__mc={S,REC,checks,startSession}}
+</script></body></html>

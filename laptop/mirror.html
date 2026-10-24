@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Motion mirror</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg1:#f3f5f8;--bg2:#c9d2dd;--panel:rgba(255,255,255,.72);--ink:#14202b;--mute:#5a6874;--line:rgba(20,32,43,.14);--accent:#0f9484;--amber:#c97a10;--mannequin:#9aa4b2;--onaccent:#06201c}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg1:#1b2735;--bg2:#080b10;--panel:rgba(20,28,38,.66);--ink:#e9eef3;--mute:#8d9aa8;--line:rgba(255,255,255,.11);--accent:#7be0d0;--amber:#f3b562;--mannequin:#dcd8d0}}
+:root[data-theme="dark"]{--bg1:#1b2735;--bg2:#080b10;--panel:rgba(20,28,38,.66);--ink:#e9eef3;--mute:#8d9aa8;--line:rgba(255,255,255,.11);--accent:#7be0d0;--amber:#f3b562;--mannequin:#dcd8d0}
+html{height:100%}
+*{box-sizing:border-box}
+body{margin:0;height:100%;overflow:hidden;color:var(--ink);font:500 14px/1.45 Manrope,system-ui,sans-serif;background:var(--bg2);background:radial-gradient(120% 90% at 35% 30%,var(--bg1),var(--bg2));touch-action:none}
+canvas#c{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:grab}
+canvas#c:active{cursor:grabbing}
+.brand{position:fixed;left:28px;top:calc(24px + env(safe-area-inset-top,0px));pointer-events:none}
+.brand h1{font:400 44px/1 "Instrument Serif",Georgia,serif;margin:0;letter-spacing:-.01em}
+.brand p{margin:6px 0 0;color:var(--mute);max-width:270px}
+#pill{position:fixed;top:calc(26px + env(safe-area-inset-top,0px));left:calc((100vw - 384px)/2);transform:translateX(-50%);display:flex;align-items:center;gap:10px;padding:9px 18px;border-radius:999px;background:var(--panel);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid var(--line);font-weight:700;white-space:nowrap;pointer-events:none}
+#pill b{width:9px;height:9px;border-radius:50%;background:var(--mute);transition:background .3s,box-shadow .3s}
+#pill.ok b{background:var(--accent);box-shadow:0 0 12px var(--accent)}
+#pill.warn b{background:var(--amber);box-shadow:0 0 12px var(--amber)}
+#pill small{font-weight:600;color:var(--mute);margin:0}
+aside{position:fixed;right:16px;top:calc(16px + env(safe-area-inset-top,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));width:368px;overflow:auto;padding:6px 20px;background:var(--panel);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid var(--line);border-radius:24px;touch-action:pan-y}
+section{padding:16px 0;border-bottom:1px solid var(--line);transition:opacity .3s}
+section:last-of-type{border:0}
+section.off{opacity:.38;pointer-events:none}
+h2{margin:0 0 10px;font-size:15px;font-weight:700;display:flex;gap:10px;align-items:center}
+h2 i{font-style:normal;width:22px;height:22px;border-radius:50%;border:1.5px solid var(--mute);display:grid;place-items:center;font-size:11px;color:var(--mute)}
+#s2.done p,#s2.done .meter,#s2.done details{display:none}
+#s2.done h2{margin-bottom:12px}
+section.done h2 i{background:var(--accent);border-color:var(--accent);color:var(--onaccent)}
+p{margin:0 0 10px;color:var(--mute)}
+p b{color:var(--ink)}
+.seg{display:flex;padding:3px;border:1px solid var(--line);border-radius:999px;margin-bottom:10px}
+.seg button{flex:1;border:0;background:none;color:var(--mute);font:600 13px Manrope,sans-serif;padding:8px 6px;border-radius:999px;cursor:pointer;transition:.2s}
+.seg button.on{background:var(--ink);color:var(--bg2)}
+.row{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+input{flex:1;min-width:0;background:none;border:1px solid var(--line);border-radius:12px;color:var(--ink);padding:9px 12px;font:500 13px Manrope,sans-serif}
+.btn{border:0;border-radius:999px;padding:11px 18px;font:700 14px Manrope,sans-serif;cursor:pointer;background:var(--accent);color:var(--onaccent);transition:transform .15s,filter .2s}
+.btn:hover{filter:brightness(1.08)}.btn:active{transform:scale(.97)}
+.btn.ghost{background:none;color:var(--ink);border:1px solid var(--line)}
+.btn.full{width:100%}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.st{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:var(--mute)}
+.st b{flex:none;margin-top:5px;width:8px;height:8px;border-radius:50%;background:var(--mute)}
+.st.ok b{background:var(--accent);box-shadow:0 0 10px var(--accent)}.st.bad b{background:var(--amber)}
+.meter{display:grid;grid-template-columns:1fr auto;gap:2px 10px;margin-bottom:10px;font-size:13px}
+.meter b{font-variant-numeric:tabular-nums}
+.meter .bar{grid-column:1/3;height:4px;background:var(--line);border-radius:4px;overflow:hidden}
+.meter .bar u{display:block;height:100%;width:0;background:var(--amber);border-radius:4px;transition:background .2s}
+.meter.ok .bar u{background:var(--accent)}.meter.ok b{color:var(--accent)}
+details{margin:0 0 12px;color:var(--mute);font-size:13px}
+summary{cursor:pointer;font-weight:600;margin-bottom:8px}
+.lens{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.lens label{display:block;font-size:12px}
+.lens input{width:100%;margin-top:3px}
+.verdict{display:flex;align-items:baseline;justify-content:space-between;margin:2px 0 12px}
+.verdict #vdWord{font:400 34px/1.05 "Instrument Serif",Georgia,serif;letter-spacing:-.01em}
+.verdict #vdConf{color:var(--mute);font-size:12.5px;font-variant-numeric:tabular-nums}
+.gauge{margin-bottom:12px}
+.gauge .gl{display:flex;justify-content:space-between;font-size:11.5px;color:var(--mute);margin-bottom:5px;letter-spacing:.02em}
+.gauge .gt{position:relative;height:8px;border-radius:8px;background:linear-gradient(90deg,var(--line),var(--line))}
+.gauge .gt::before{content:"";position:absolute;left:50%;top:-3px;bottom:-3px;width:1px;background:var(--line)}
+.gauge .gt u{position:absolute;top:-4px;width:16px;height:16px;margin-left:-8px;border-radius:50%;background:var(--accent);box-shadow:0 0 14px var(--accent);left:50%;transition:left .25s,opacity .25s,background .25s}
+#tip{min-height:42px;font-size:13px}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px}
+.stats div{border:1px solid var(--line);border-radius:14px;padding:9px 12px}
+.stats span{display:block;color:var(--mute);font-size:12px}
+.stats b{font:400 26px/1.1 "Instrument Serif",Georgia,serif;font-variant-numeric:tabular-nums}
+small{color:var(--mute);display:block;margin-top:10px;font-size:12px}
+.hide{display:none!important}
+#vitals{position:fixed;left:28px;bottom:calc(28px + env(safe-area-inset-bottom,0px));width:250px;padding:14px 18px 12px;background:var(--panel);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid var(--line);border-radius:22px;pointer-events:none}
+#vitals h3{margin:0 0 6px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);font-weight:700}
+.hr{display:flex;align-items:baseline;gap:6px;margin-bottom:2px}
+#hrNum{font:400 46px/1 "Instrument Serif",Georgia,serif;font-variant-numeric:tabular-nums}
+.hr .u{color:var(--mute);font-size:12px}
+.hr canvas{margin-left:auto;width:96px;height:30px;align-self:center}
+.vrow{display:flex;justify-content:space-between;padding:5px 0;border-top:1px solid var(--line);font-size:13px}
+.vrow span{color:var(--mute)}.vrow b{font-variant-numeric:tabular-nums}
+@media (max-width:860px){
+ .brand{left:18px}.brand h1{font-size:34px}.brand p{display:none}
+ #pill{left:50%;top:auto;bottom:calc(10px + env(safe-area-inset-bottom,0px) + 50vh + 8px)}
+ #vitals{display:none}
+ aside{left:10px;right:10px;top:auto;width:auto;max-height:50vh;bottom:calc(10px + env(safe-area-inset-bottom,0px))}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="3D mannequin mirroring your arm movement"></canvas>
+<div class="brand"><h1>Motion mirror</h1><p id="sub">Your arm, mirrored on a mannequin, with shoulder and elbow told apart.</p></div>
+<div id="pill"><b></b><span id="pillWord">Calibrate to start</span><small id="pillConf"></small></div>
+
+<div id="vitals" aria-label="Vitals">
+ <h3>Vitals</h3>
+ <div class="hr"><span id="hrNum">–</span><span class="u">bpm</span><canvas id="hrSpark" width="192" height="60"></canvas></div>
+ <div class="vrow"><span>Hand speed (est.)</span><b id="vSpeed">–</b></div>
+ <div class="vrow"><span>Peak speed</span><b id="vPeak">–</b></div>
+ <div class="vrow"><span>Session</span><b id="vTime">–</b></div>
+ <div class="vrow"><span>Watch battery</span><b id="vBat">–</b></div>
+ <div class="vrow"><span>Stream rate</span><b id="vHz">–</b></div>
+</div>
+
+<aside id="panel">
+ <section id="s1">
+  <h2><i>1</i>Sensor</h2>
+  <p style="margin:0 0 6px">Upper arm from</p>
+  <div class="seg" id="srcSeg"><button data-s="model" class="on">Trained model</button><button data-s="phone">Phone on bicep</button></div>
+  <div id="phoneOnly" class="hide"><p style="margin:0 0 6px">The phone’s top edge points toward your</p><div class="seg" id="phSeg"><button data-p="6" class="on">Shoulder</button><button data-p="12">Elbow</button></div><small id="phoneInfo" style="margin:-4px 0 10px"></small></div>
+  <div class="seg" id="sideSeg"><button data-w="1" class="on">Left wrist</button><button data-w="-1">Right wrist</button></div>
+  <p style="margin:0 0 6px">Which number on the watch face points toward your fingers?</p>
+  <div class="seg" id="axSeg"><button data-a="12">12</button><button data-a="3" class="on">3</button><button data-a="6">6</button><button data-a="9">9</button></div>
+  <small style="margin:-4px 0 10px">Use the same number you chose in the collector (3 for a normal left-wrist wear). If raising your arm lowers the mannequin's, try the opposite number.</small>
+  <div class="st" id="status"><b></b><span>Connecting…</span></div>
+  <small id="modelInfo"></small>
+ </section>
+ <section id="s2">
+  <h2><i>2</i>Calibrate</h2>
+  <p>Stand tall, facing the way you did while recording. Hold your arm <b>straight</b> out in front at shoulder height, palm flat and facing down. Match the amber ghost, then hold still for 3 seconds.</p>
+  <div class="meter" id="m1"><span>Arm level</span><b>–</b><div class="bar"><u></u></div></div>
+  <div class="meter" id="m2"><span>Palm flat</span><b>–</b><div class="bar"><u></u></div></div>
+  <details><summary>Arm lengths</summary>
+   <div class="lens"><label>Shoulder to elbow (cm)<input id="lenU" type="number" min="15" max="50" value="30"></label><label>Elbow to wrist (cm)<input id="lenF" type="number" min="15" max="45" value="27"></label></div>
+  </details>
+  <button class="btn full" id="cal">I’m in position</button>
+  <small id="calMsg"></small>
+ </section>
+ <section id="s3" class="off">
+  <h2><i>3</i>Joints</h2>
+  <div class="verdict"><span id="vdWord">–</span><span id="vdConf"></span></div>
+  <div class="gauge"><div class="gl"><span>Elbow</span><span>Both</span><span>Shoulder</span></div><div class="gt"><u id="gm"></u></div></div>
+  <p id="tip"></p>
+  <small id="cmp" style="margin:-4px 0 12px"></small>
+  <div class="stats">
+   <div><span>Shoulder lift</span><b id="h1">–</b></div>
+   <div><span>Shoulder sweep</span><b id="h2">–</b></div>
+   <div><span>Elbow bend</span><b id="h3">–</b></div>
+   <div><span>Forearm roll</span><b id="h4">–</b></div>
+  </div>
+  <div class="row"><button class="btn ghost" id="clr">Clear trail</button></div>
+  <details><summary>Anatomy constraints (each on/off)</summary>
+   <div id="cons"></div><small id="consInfo"></small>
+  </details>
+  <small>The watch sits on the forearm, so it reads the forearm directly. A small neural network trained on your own camera-labelled sessions estimates where the upper arm is, and the shoulder/elbow verdict follows from how the upper arm and forearm move. Slow movements are the hardest case. In phone mode the upper arm is measured by the phone on your bicep instead. The facing direction drifts a little over minutes, so recalibrate now and then.</small>
+ </section>
+ <small id="ver" style="padding-bottom:10px">Page version 7 (trained model)</small>
+</aside>
+
+<script src="assets/three.min.js"></script>
+<script src="shared.js"></script>
+<script>
+'use strict';
+const Q=new URLSearchParams(location.search),FAKE=Q.has('fake');
+(()=>{
+const T=THREE,$=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const tv=a=>new T.Vector3(a[0],a[1],a[2]);
+const Y=new T.Vector3(0,1,0);
+
+/* ----- scene ----- */
+const R=new T.WebGLRenderer({canvas:$('#c'),antialias:true,alpha:true});
+R.setPixelRatio(Math.min(devicePixelRatio,2));R.shadowMap.enabled=true;
+const S=new T.Scene(),cam=new T.PerspectiveCamera(30,1,.1,60);
+const ACC=new T.Color(css('--accent')),AMB=new T.Color(css('--amber'));
+S.add(new T.HemisphereLight(0xdfe8f5,0x1a2230,.95));
+const key=new T.DirectionalLight(0xffffff,1.1);key.position.set(2.5,4,3);key.castShadow=true;key.shadow.mapSize.set(1024,1024);
+Object.assign(key.shadow.camera,{left:-2,right:2,top:2,bottom:-2});S.add(key);
+const rim=new T.DirectionalLight(ACC,.9);rim.position.set(-3,2.5,-3);S.add(rim);
+const floor=new T.Mesh(new T.CircleGeometry(3,64),new T.ShadowMaterial({opacity:.3}));floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;S.add(floor);
+const ring=new T.Mesh(new T.RingGeometry(.78,.8,96),new T.MeshBasicMaterial({color:ACC,transparent:true,opacity:.55}));ring.rotation.x=-Math.PI/2;ring.position.y=.003;S.add(ring);
+
+const MAT=new T.MeshStandardMaterial({color:css('--mannequin'),roughness:.55,metalness:.04});
+const body=new T.Group();S.add(body);
+function part(g,x,y,z,sx=1,sy=1,sz=1){const m=new T.Mesh(g,MAT);m.position.set(x,y,z);m.scale.set(sx,sy,sz);m.castShadow=true;body.add(m)}
+part(new T.SphereGeometry(.125,40,30),0,1.8,0,1,1.12,1);
+part(new T.CylinderGeometry(.045,.055,.12,20),0,1.64,0);
+part(new T.CylinderGeometry(.23,.17,.62,40),0,1.3,0,1,1,.62);
+part(new T.SphereGeometry(.34,32,20),0,1.53,0,1,.2,.34);
+part(new T.SphereGeometry(.19,32,20),0,.96,0,1,.7,.65);
+for(const s of[-1,1]){part(new T.CylinderGeometry(.08,.055,.9,24),s*.1,.45,0);part(new T.BoxGeometry(.1,.05,.2),s*.1,.025,.04)}
+
+// one arm: upper arm + forearm + hand, built from a known upper-arm direction u, forearm direction d and palm normal n
+class Limb{
+ constructor(opt={}){
+  this.g=new T.Group();S.add(this.g);
+  const solid=opt.ghost?new T.MeshBasicMaterial({color:AMB,transparent:true,opacity:.3,depthWrite:false}):MAT;
+  this.solid=solid;
+  const add=(geo,mat=solid)=>{const o=new T.Mesh(geo,mat);o.castShadow=!opt.ghost;this.g.add(o);return o};
+  const joint=()=>opt.ghost?solid:new T.MeshStandardMaterial({color:css('--mannequin'),roughness:.4,metalness:.05,emissive:ACC,emissiveIntensity:0});
+  this.up=add(new T.CylinderGeometry(.046,.039,1,24));this.fo=add(new T.CylinderGeometry(.04,.032,1,24));
+  this.mSh=joint();this.mEl=joint();this.mWr=joint();
+  this.sh=add(new T.SphereGeometry(.065,28,18),this.mSh);this.el=add(new T.SphereGeometry(.05,28,18),this.mEl);this.wr=add(new T.SphereGeometry(.037,24,16),this.mWr);
+  this.hand=add(new T.BoxGeometry(.1,.15,.032));
+  if(opt.band){this.band=new T.Mesh(new T.BoxGeometry(.108,.04,.052),new T.MeshStandardMaterial({color:ACC,emissive:ACC,emissiveIntensity:.7}));this.g.add(this.band)}
+ }
+ place(o,a,b){const d=b.clone().sub(a),l=d.length();o.position.copy(a).addScaledVector(d,.5);o.quaternion.setFromUnitVectors(Y,d.normalize());o.scale.set(1,l,1)}
+ set(shoulder,u,d,n,L1,L2){
+  const el=shoulder.clone().addScaledVector(u,L1),wr=el.clone().addScaledVector(d,L2);
+  this.sh.position.copy(shoulder);this.el.position.copy(el);this.wr.position.copy(wr);
+  this.place(this.up,shoulder,el);this.place(this.fo,el,wr);
+  const x=new T.Vector3().crossVectors(d,n).normalize(),q=new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(x,d.clone().normalize(),n.clone().normalize()));
+  this.hand.position.copy(wr).addScaledVector(d,.09);this.hand.quaternion.copy(q);
+  if(this.band){this.band.position.copy(wr).addScaledVector(d,-.045);this.band.quaternion.copy(q)}
+  return wr.clone().addScaledVector(d,.17);
+ }
+}
+const live=new Limb({band:true}),passive=new Limb(),ghost=new Limb({ghost:true});
+let side=1,L1=.30,L2=.27;
+const shoulderPos=s=>new T.Vector3(s*.3,1.5,0);
+function setSide(s){
+ side=s;
+ passive.set(shoulderPos(-s),new T.Vector3(0,-1,.03).normalize(),new T.Vector3(0,-.97,.2).normalize(),new T.Vector3(-s,0,0),L1,L2);
+ ghost.set(shoulderPos(s),new T.Vector3(0,0,1),new T.Vector3(0,0,1),new T.Vector3(0,1,0),L1,L2);
+}
+
+/* wrist trail */
+const N=160,tp=new Float32Array(N*3),tc=new Float32Array(N*3),tg=new T.BufferGeometry();
+tg.setAttribute('position',new T.BufferAttribute(tp,3));tg.setAttribute('color',new T.BufferAttribute(tc,3));
+const trail=new T.Line(tg,new T.LineBasicMaterial({vertexColors:true})),dots=new T.Points(tg,new T.PointsMaterial({size:3,sizeAttenuation:false,vertexColors:true}));
+trail.frustumCulled=dots.frustumCulled=false;S.add(trail,dots);
+const tip=new T.Mesh(new T.SphereGeometry(.026,16,12),new T.MeshBasicMaterial({color:ACC}));S.add(tip);
+let pts=[];
+function pushTrail(p){
+ pts.push(p.x,p.y,p.z);if(pts.length>N*3)pts.splice(0,3);
+ const n=pts.length/3;tp.set(pts);
+ for(let i=0;i<n;i++){const f=Math.pow(i/Math.max(1,n-1),1.5);tc[i*3]=ACC.r*f;tc[i*3+1]=ACC.g*f;tc[i*3+2]=ACC.b*f}
+ tg.attributes.position.needsUpdate=tg.attributes.color.needsUpdate=true;tg.setDrawRange(0,n);tip.position.copy(p);
+}
+function clearTrail(){pts=[];tg.setDrawRange(0,0);tip.position.set(0,-9,0)}clearTrail();
+
+/* ----- camera ----- */
+let az=.9,el=.12,rad=5.2,zoom=1;const tgt=new T.Vector3(0,1.1,.25);
+function resize(){
+ const w=innerWidth,h=innerHeight,p=$('#panel');R.setSize(w,h,false);cam.aspect=w/h;
+ if(w>860){rad=5.2;cam.setViewOffset(w,h,p.offsetWidth/2+8,0,w,h)}else{rad=Math.max(5.2,6.2*(h/w)*.62);cam.setViewOffset(w,h,0,Math.min(p.offsetHeight/2,h*.25),w,h)}
+ cam.updateProjectionMatrix();
+}
+addEventListener('resize',resize);
+let drag=null;const cv=$('#c');
+cv.addEventListener('pointerdown',e=>{drag=[e.clientX,e.clientY];cv.setPointerCapture(e.pointerId)});
+cv.addEventListener('pointermove',e=>{if(!drag)return;az-=(e.clientX-drag[0])*.006;el=clamp(el+(e.clientY-drag[1])*.004,-.1,.7);drag=[e.clientX,e.clientY]});
+cv.addEventListener('pointerup',()=>drag=null);
+cv.addEventListener('wheel',e=>{e.preventDefault();zoom=clamp(zoom*(1+e.deltaY*.001),.55,1.6)},{passive:false});
+
+/* ----- trained model + sensor wiring ----- */
+const RAD=Math.PI/180;
+const ACT_MOVE=25,ACT_SLOW=8;                // deg/s of combined upper-arm + elbow movement: above ACT_MOVE a verdict is given
+const ST={relay:false,watch:false,phone:false,hr:null,bat:null};
+let model=null,modelMsg='Loading the trained model…',gru=null,fs=null,af=new AnatFilter();
+let axis='3',cal=null,cur=null,counting=0,calCollect=null,lastRx=0,rx=0,hz=0,hrAt=0,hrHist=[],peak=0,t0s=0,spd=0;
+let yaw=0,D=[0,0,1],Nv=[0,1,0],U=[0,0,1],uSm=[0,0,1],hist=[],share=.5,act=0,wpar=0,wperp=0,mode='still',prevHand=null,steps=0;
+let truth=null,err=null,errAvg=null,trainedLeft=true;
+let src='model',phoneAx='6',phLast=null,phT=0,phHz=0,phRx=0,calPh=null;
+fs=new FeatureStream(axis,{baro:false});
+const isLive=()=>performance.now()-lastRx<1000;
+function setStatus(t,k=''){const s=$('#status');if(s.dataset.t===t&&s.className==='st '+k)return;s.dataset.t=t;s.className='st '+k;s.querySelector('span').textContent=t}
+
+fetch('/model.json').then(r=>r.ok?r.json():Promise.reject(new Error('missing'))).then(j=>{
+ model=j;gru=new GRU(j);fs=new FeatureStream(axis,{baro:j.baro!==false});
+ if(j.anat){af=new AnatFilter(j.anat);buildCons(j.anat);trainedLeft=j.anat.s<0}
+ const tr=(j.trained_on||[]).length;
+ $('#modelInfo').dataset.base=`Model: ${j.baro===false?'no barometer':'with barometer'}, trained on ${tr} session${tr===1?'':'s'}`+(j.test_median_deg!=null?`, ${j.test_median_deg.toFixed(1)}° median error on an unseen session.`:'.');
+ if(!trainedLeft){setSide(-1);setAx('9')}
+ showInfo();modelMsg='';
+}).catch(()=>{modelMsg='No model yet. Run train.py first (it writes laptop/model.json).'});
+
+/* anatomy constraint switches (all start from the defaults train.py chose, which are normally all off) */
+const CONS=[['preset','preset hinge limits (hand-set)'],['bend','learned: elbow bend range'],['side','learned: forearm-side range'],['vbend','learned: bend-speed limit'],['vside','learned: twist-speed limit']];
+function buildCons(A){
+ const box=$('#cons');box.innerHTML='';const lim=A.lim,def=A.defaults||{};
+ for(const [k,label] of CONS){
+  const avail=k==='preset'||(!!lim&&!(k==='side'&&lim.p_full));
+  const l=document.createElement('label');l.style.cssText='display:flex;gap:8px;align-items:center;margin:4px 0';l.innerHTML=`<input type="checkbox" id="c_${k}" style="flex:none;width:auto"><span>${label}</span>`;box.appendChild(l);
+  const cb=l.querySelector('input');cb.checked=avail&&!!def[k];cb.disabled=!avail;af.flags[k]=cb.checked;
+  cb.onchange=()=>{af.flags[k]=cb.checked;af.reset()};
+ }
+ $('#consInfo').textContent='The held-out test showed none of these help on your data, so they start off.';
+}
+
+const qT=q=>{const l=Math.hypot(q[0],q[1],q[2],q[3])||1;return [q[0]/l,q[2]/l,-q[1]/l,q[3]/l]};   // same conversion as decodePacket()
+const fromThree=v=>[v[0],-v[2],v[1]],conjq=q=>[-q[0],-q[1],-q[2],q[3]];
+function onPhone(m){const q=m.pq;if(!q||q.length<4)return;phLast=q;phT=performance.now();phRx++;if(calPh)calPh.push([phT,q])}
+const phoneLive=()=>!!phLast&&performance.now()-phT<1000;
+// upper arm direction from the phone: the arm axis (found at calibration, in the phone's own frame) rotated by the phone's orientation, then aligned to the same heading as the watch
+function phoneU(){if(!phLast||!cal||!cal.aP)return null;return yawRot(qrot(qT(phLast),toThree(cal.aP)),cal.yawP)}
+const link=new WatchLink(`ws://${location.host}/ws`,{
+ onStatus:o=>{Object.assign(ST,o);if(FAKE&&o.watch)setTimeout(()=>link.send({cmd:'sim_start'}),300)},
+ onPacket:(m,now)=>{
+  lastRx=now;rx++;
+  const dp=decodePacket(m,axis);cur={d:dp.D,n:dp.N};
+  if(calCollect)calCollect.push([now,dp.D,dp.N]);
+  if(!fs)return;
+  fs.push(m);
+  fs.drain((tg,x)=>{
+   fs.yaw=yaw;
+   const d=[x[0],x[1],x[2]],n=[x[3],x[4],x[5]];
+   let u;
+   if(src==='phone')u=phoneU()||U;
+   else{if(!gru)return;u=af.step(gru.step(x),d,n)}
+   D=d;Nv=n;U=u;steps++;
+   uSm=nrm(add(mul(uSm,.55),mul(u,.45)));
+   hist.push({u:uSm,D:d});if(hist.length>6)hist.shift();
+   const kf=1-Math.exp(-.02/.15),k3=1-Math.exp(-.02/.3);
+   if(hist.length===6){
+    const dt=.1,du=angDeg(hist[5].u,hist[0].u)/dt,phi1=angDeg(hist[5].u,hist[5].D),phi0=angDeg(hist[0].u,hist[0].D),dp2=Math.abs(phi1-phi0)/dt;
+    act+=(du+dp2-act)*k3;share+=((du/(du+dp2+1e-6))-share)*k3;
+   }
+   const wp=x[13],W=[x[6],x[7],x[8]],wq=Math.sqrt(Math.max(0,dot(W,W)-wp*wp));
+   wpar+=(Math.abs(wp)-wpar)*kf;wperp+=(wq-wperp)*kf;
+   // verdict
+   if(wpar>1.5*wperp&&wpar>.3)mode='twist';
+   else if(act>ACT_MOVE)mode=share>.55?'shoulder':share<.35?'elbow':'both';
+   else mode=act>ACT_SLOW?'slow':'still';
+   // hand speed estimate: hand position from the model's upper arm + the watch's forearm, shoulder assumed fixed
+   const hand=add(mul(u,L1),mul(d,L2+.09));
+   if(prevHand){const sp=mode==='still'||mode==='twist'?0:Math.hypot(hand[0]-prevHand[0],hand[1]-prevHand[1],hand[2]-prevHand[2])/.02;spd+=(Math.min(sp,25)-spd)*(1-Math.exp(-.02/.12))}
+   prevHand=hand;
+   if(cal&&spd>peak&&performance.now()-t0s>1500)peak=spd;
+   if(FAKE&&truth){const ut=yawRot(truth.u,yaw);err=angDeg(ut,u);errAvg=errAvg==null?err:errAvg*.98+err*.02}
+  });
+ },
+ onOther:(m,now)=>{
+  if(m.pq){onPhone(m);return}
+  if(m.event==='phone'){ST.phone=!!m.up;return}
+  if(m.p!==undefined){if(fs&&model&&model.baro!==false)fs.pushBaro(m.tp,m.p)}
+  else if(m.hr!==undefined){ST.hr=m.hr;hrAt=performance.now();hrHist.push(m.hr);if(hrHist.length>90)hrHist.shift()}
+  else if(m.bat!==undefined)ST.bat=m.bat;
+  else if(m.truth)truth=m.truth;
+ }
+});
+
+function resetEngine(){
+ cal=null;counting=0;calCollect=null;calPh=null;cur=null;clearTrail();
+ if(gru)gru.reset();af.reset();
+ fs=new FeatureStream(axis,{baro:!!model&&model.baro!==false&&src==='model'});
+ yaw=0;hist=[];share=.5;act=0;mode='still';prevHand=null;spd=0;peak=0;uSm=[0,0,1];
+ refreshUI();
+}
+function setAx(a){axis=a;$$('#axSeg button').forEach(b=>b.classList.toggle('on',b.dataset.a===a));resetEngine()}
+$$('#axSeg button').forEach(b=>b.onclick=()=>setAx(b.dataset.a));
+function sideWarn(){const left=side===1;$('#modelInfo').dataset.w=(model&&src==='model'&&left!==trainedLeft)?'1':'';showInfo()}
+function showInfo(){const e=$('#modelInfo');e.textContent=(e.dataset.base||'')+(e.dataset.w?' Warning: this model was trained with the watch on the '+(trainedLeft?'left':'right')+' wrist, so the other wrist will not be accurate.':'')}
+$$('#sideSeg button').forEach(b=>b.onclick=()=>{setSide(+b.dataset.w);setAx(+b.dataset.w===1?'3':'9');sideWarn()});
+const _setSide=setSide;
+setSide=function(s){_setSide(s);$$('#sideSeg button').forEach(x=>x.classList.toggle('on',+x.dataset.w===s))};
+$('#clr').onclick=clearTrail;
+function lengths(){
+ const u=clamp(+$('#lenU').value||30,15,50)/100,f=clamp(+$('#lenF').value||27,15,45)/100;
+ L1=u;L2=f;setSide(side);
+}
+$('#lenU').onchange=$('#lenF').onchange=lengths;
+
+/* ----- calibration (same pose as in the recording sessions) ----- */
+function refreshUI(){
+ $('#s2').classList.toggle('done',!!cal);$('#s3').classList.toggle('off',!cal);
+ $('#cal').textContent=cal?'Recalibrate':'I’m in position';
+ $('#sub').textContent=cal?'Mirroring your arm in real time.':'Match the amber ghost arm, then press “I’m in position”.';
+}
+function finishCal(){
+ const t1=performance.now(),psel=(calPh||[]).filter(r=>t1-r[0]>200&&t1-r[0]<2000);calPh=null;
+ const sel=(calCollect||[]).filter(r=>t1-r[0]>200&&t1-r[0]<2000);calCollect=null;
+ if(sel.length<40){$('#calMsg').textContent='Calibration failed: not enough data from the watch.';refreshUI();return}
+ let sd=[0,0,0],sn=[0,0,0];for(const r of sel){sd=add(sd,r[1]);sn=add(sn,r[2])}
+ const d=nrm(sd),n=nrm(sn);
+ yaw=Math.atan2(-d[0],d[2]);fs.yaw=yaw;if(gru)gru.reset();af.reset();fs.fast=null;fs.slow=null;hist=[];share=.5;act=0;prevHand=null;spd=0;peak=0;
+ cal={yaw,nRef:nrm(yawRot(n,yaw))};
+ t0s=performance.now();clearTrail();
+ const dd=yawRot(d,yaw);disp.d.copy(tv(dd));disp.n.copy(tv(yawRot(n,yaw)));disp.u.copy(disp.d);D=dd;U=dd;uSm=dd;
+ let phoneMsg='';
+ if(src==='phone'){
+  if(psel.length<20){cal=null;$('#calMsg').textContent='Calibration failed: no data from the phone. Open phone.html on the phone and tap Start.';refreshUI();return}
+  const ax0=AXES[phoneAx];let us=[0,0,0];for(const r of psel)us=add(us,qrot(qT(r[1]),toThree(ax0)));
+  const yawP=Math.atan2(-us[0],us[2]),ut=yawRot(dd,-yawP);let as=[0,0,0];
+  for(const r of psel)as=add(as,fromThree(qrot(conjq(qT(r[1])),ut)));
+  const aP=nrm(as);cal.aP=aP;cal.yawP=yawP;cal.tilt=angDeg(aP,ax0);
+  phoneMsg=cal.tilt>35?' The phone’s axis is far from where you said it points ('+Math.round(cal.tilt)+'° off). Check the Shoulder / Elbow choice and recalibrate.':'';
+ }
+ const elev=Math.asin(clamp(d[1],-1,1))/RAD,tilt=Math.acos(clamp(n[1],-1,1))/RAD;
+ $('#calMsg').textContent=(Math.abs(elev)>25||tilt>50?'Calibrated, but your arm wasn’t level or your palm wasn’t flat, so the mannequin may look rotated. Recalibrate in the ghost pose for best results.':'')+phoneMsg;
+ refreshUI();
+}
+function tick(){
+ if(counting>0){$('#cal').textContent='Hold still… '+counting;setTimeout(()=>{counting--;tick()},1000)}
+ else{$('#cal').textContent='Measuring…';calCollect=[];calPh=src==='phone'?[]:null;setTimeout(()=>{try{finishCal()}catch(e){$('#calMsg').textContent='Error: '+e.message;refreshUI()}},2300)}
+}
+$('#cal').onclick=()=>{
+ if(counting||calCollect)return;
+ if(cal){cal=null;clearTrail();refreshUI();$('#calMsg').textContent='Get into the pose, then press the button again.';return}
+ if(!isLive()||!cur||!fs){$('#calMsg').textContent='No sensor data yet. Check the connection first.';return}
+ if(src==='model'&&!gru){$('#calMsg').textContent='The trained model is not loaded yet.';return}
+ if(src==='phone'&&!phoneLive()){$('#calMsg').textContent='No data from the phone yet. Open phone.html on the phone and tap Start.';return}
+ counting=3;$('#calMsg').textContent='';refreshUI();tick();
+};
+
+/* ----- display state ----- */
+const disp={d:new T.Vector3(0,0,1),n:new T.Vector3(0,1,0),u:new T.Vector3(0,0,1)};
+const glow={sh:0,el:0,wr:0};
+const MODE={
+ still:{w:'Holding still',k:'',tip:'Waiting for movement.'},
+ slow:{w:'Slow movement',k:'warn',tip:'Slow movements are the hardest case for a single watch, so the shoulder / elbow split is only a rough guess. A swing of about 1 to 2 seconds works best.'},
+ twist:{w:'Forearm twist',k:'ok',tip:'The forearm is turning on its own axis.'},
+ elbow:{w:'Elbow',k:'ok',tip:'Mostly the elbow is bending. The shoulder is steady.'},
+ shoulder:{w:'Shoulder',k:'ok',tip:'The whole arm is swinging from the shoulder.'},
+ both:{w:'Shoulder + elbow',k:'ok',tip:'Both joints are moving. The upper arm angle is approximate.'}
+};
+const fmt=(v,u='°')=>Math.round(v)+u;
+function fmtTime(ms){const s=Math.floor(ms/1000);return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')}
+function spark(){
+ const c=$('#hrSpark'),g=c.getContext('2d'),w=c.width,h=c.height;g.clearRect(0,0,w,h);
+ if(hrHist.length<2)return;
+ const lo=Math.min(...hrHist)-4,hi=Math.max(...hrHist)+4;
+ g.strokeStyle=css('--accent');g.lineWidth=3;g.lineJoin='round';g.lineCap='round';g.beginPath();
+ hrHist.forEach((v,i)=>{const x=i/(hrHist.length-1)*(w-4)+2,y=h-4-(v-lo)/(hi-lo)*(h-8);i?g.lineTo(x,y):g.moveTo(x,y)});g.stroke();
+}
+function updateUI(now){
+ const live2=isLive(),p=cur;
+ let st,sk='';
+ if(src==='model'&&modelMsg){st=modelMsg;sk='bad'}
+ else if(!ST.relay){st='Can’t reach the relay. Is server.py running?';sk='bad'}
+ else if(!live2&&!ST.watch){st='Relay connected. Open Motion Collector on your watch and press Start.';sk='bad'}
+ else if(!live2){st='Waiting for data from the watch…';sk='bad'}
+ else{st='Streaming at '+hz+' Hz'+(cal?', calibrated.':'. Ready to calibrate.');sk='ok'}
+ if(src==='phone'){const pl=phoneLive();$('#phoneInfo').textContent=pl?'Phone streaming at '+phHz+' Hz.':ST.phone?'Phone connected, waiting for data (tap Start on the phone).':'Phone not connected. On the phone open phone.html (see the README).';
+  if(live2&&!pl){st='Watch OK, waiting for the phone sensor…';sk='bad'}}
+ if(!counting&&!calCollect)setStatus(st,sk);
+ $('#s1').classList.toggle('done',live2&&(src==='phone'?phoneLive():!modelMsg));
+ if(p){
+  const m=(id,v,lim,max)=>{const e=$(id);e.querySelector('b').textContent=live2?Math.round(v)+'°':'–';e.querySelector('u').style.width=Math.min(100,Math.abs(v)/max*100)+'%';e.classList.toggle('ok',live2&&Math.abs(v)<lim)};
+  m('#m1',Math.asin(clamp(p.d[1],-1,1))/RAD,12,45);m('#m2',Math.acos(clamp(p.n[1],-1,1))/RAD,15,60);
+ }
+ let word='Calibrate to start',pk='',conf='',tipTxt='';
+ if(cal&&!live2){word='No signal';pk='warn'}
+ else if(cal){const I=MODE[mode];word=I.w;pk=I.k;tipTxt=I.tip;if(mode==='shoulder'||mode==='elbow'||mode==='both')conf='shoulder share '+Math.round(share*100)+'%'}
+ $('#pill').className=pk;$('#pillWord').textContent=word;$('#pillConf').textContent=conf;
+ $('#vdWord').textContent=cal?word:'–';$('#vdConf').textContent=conf;$('#tip').textContent=tipTxt;
+ $('#cmp').textContent=cal&&live2?'Movement '+Math.round(act)+'°/s, shoulder share '+Math.round(share*100)+'%.':'';
+ const gm=$('#gm');
+ if(cal&&live2&&mode!=='twist'&&mode!=='still'){gm.style.left=(share*100)+'%';gm.style.opacity=mode==='slow'?.4:.5+.5*Math.min(1,act/80);gm.style.background=mode==='slow'?'var(--amber)':'var(--accent)';gm.style.boxShadow=mode==='slow'?'0 0 14px var(--amber)':'0 0 14px var(--accent)'}
+ else{gm.style.left='50%';gm.style.opacity=.2}
+ if(cal&&p){
+  const uU=disp.u,dU=disp.d;
+  $('#h1').textContent=fmt(Math.asin(clamp(uU.y,-1,1))/RAD);
+  const sw=Math.atan2(uU.x,uU.z)/RAD;$('#h2').textContent=fmt(Math.abs(sw))+(Math.abs(sw)<1?'':sw>0?' L':' R');
+  $('#h3').textContent=fmt(angDeg(U,D));
+  const nr=tv(cal.nRef),np=disp.n.clone(),dd=dU.clone();
+  nr.addScaledVector(dd,-nr.dot(dd));np.addScaledVector(dd,-np.dot(dd));
+  $('#h4').textContent=nr.lengthSq()>1e-4&&np.lengthSq()>1e-4?fmt(Math.atan2(dd.dot(new T.Vector3().crossVectors(nr,np)),nr.dot(np))/RAD):'–';
+ }
+ const fresh=ST.hr!=null&&performance.now()-hrAt<8000;
+ $('#hrNum').textContent=fresh?ST.hr:'–';spark();
+ $('#vSpeed').textContent=cal&&live2?spd.toFixed(1)+' m/s':'–';
+ $('#vPeak').textContent=cal&&live2?peak.toFixed(1)+' m/s':'–';
+ $('#vTime').textContent=cal?fmtTime(now-t0s):'–';
+ $('#vBat').textContent=ST.bat!=null?ST.bat+'%':'–';
+ $('#vHz').textContent=live2?hz+' Hz':'–';
+}
+
+/* ----- loop ----- */
+setInterval(()=>{hz=rx;rx=0;phHz=phRx;phRx=0},1000);
+let last=performance.now(),fr=0;
+function frame(now){
+ requestAnimationFrame(frame);
+ const dt=Math.min(.05,(now-last)/1000);last=now;fr++;
+ const live2=isLive();
+ ghost.g.visible=!cal;live.g.visible=!!cal;
+ ghost.solid.opacity=.22+.12*Math.sin(now/380);
+ if(cal&&cur){
+  const k=1-Math.exp(-dt*28);
+  disp.d.lerp(tv(D),k).normalize();disp.n.lerp(tv(Nv),k);disp.n.addScaledVector(disp.d,-disp.n.dot(disp.d)).normalize();disp.u.lerp(tv(U),k).normalize();
+  const sh=shoulderPos(side),wrist=live.set(sh,disp.u,disp.d,disp.n,L1,L2);
+  if(live2)pushTrail(wrist);
+  const md=live2?mode:'still',pulse=.6+.3*Math.sin(now/260);
+  const tg2={sh:(md==='shoulder'||md==='both')?.9:md==='slow'?pulse:0,el:(md==='elbow'||md==='both')?.9:md==='slow'?pulse:0,wr:md==='twist'?.9:0};
+  for(const j of['sh','el','wr'])glow[j]+=(tg2[j]-glow[j])*(1-Math.exp(-dt*10));
+  const col=md==='slow'?AMB:ACC;
+  [['sh',live.mSh],['el',live.mEl],['wr',live.mWr]].forEach(([j,m])=>{m.emissive.copy(col);m.emissiveIntensity=glow[j]*1.1});
+ }
+ if(fr%6===0)updateUI(now);
+ const r=rad*zoom;
+ cam.position.set(tgt.x+r*Math.cos(el)*Math.sin(az),tgt.y+r*Math.sin(el),tgt.z+r*Math.cos(el)*Math.cos(az));cam.lookAt(tgt);
+ R.render(S,cam);
+}
+function setSrc(s){src=s;try{localStorage.setItem('mm_src',s)}catch(e){}
+ $$('#srcSeg button').forEach(b=>b.classList.toggle('on',b.dataset.s===s));$('#phoneOnly').classList.toggle('hide',s!=='phone');$('#modelInfo').style.display=s==='model'?'':'none';
+ resetEngine();sideWarn()}
+$$('#srcSeg button').forEach(b=>b.onclick=()=>setSrc(b.dataset.s));
+$$('#phSeg button').forEach(b=>b.onclick=()=>{phoneAx=b.dataset.p;$$('#phSeg button').forEach(x=>x.classList.toggle('on',x===b));resetEngine()});
+setSide(1);lengths();resize();refreshUI();
+{let s0='model';try{s0=Q.get('src')||localStorage.getItem('mm_src')||'model'}catch(e){}setSrc(s0==='phone'?'phone':'model')}
+requestAnimationFrame(frame);
+if(FAKE)window.__mirror={link,get err(){return errAvg},get cal(){return !!cal},get steps(){return steps},get mode(){return mode},get U(){return U},get D(){return D},get yaw(){return yaw},get spd(){return spd},get src(){return src},setSrc,get tilt(){return cal&&cal.tilt},get cal(){return cal},get truthU(){return truth&&truth.u},get U(){return U},get phone(){return phLast},get share(){return share},get act(){return act},af,setAx};
+})();
+</script>
+</body>
+</html>

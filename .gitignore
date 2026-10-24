@@ -1,0 +1,29 @@
+# Node / Vite
+node_modules/
+dist/
+build/
+.vite/
+*.log
+nohup.out
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Android
+watch-app/build/
+watch-app/.gradle/
+watch-app/.idea/
+
+# Misc
+.gradle/
+*.pid

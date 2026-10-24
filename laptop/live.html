@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Motion Live</title>
+<style>
+:root{--bg:#0b0e14;--panel:#121722;--panel2:#171e2c;--line:#222b3d;--tx:#e8edf6;--mu:#8a96ad;--ok:#3ddc97;--warn:#ffb454;--bad:#ff5d6c;--acc:#6ea8ff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,Segoe UI,Roboto,sans-serif}
+header{display:flex;align-items:center;gap:14px;padding:12px 20px;border-bottom:1px solid var(--line)}header h1{font-size:15px;margin:0;font-weight:650}header .sp{flex:1}
+.chip{padding:3px 10px;border-radius:99px;background:var(--panel2);border:1px solid var(--line);color:var(--mu);font-size:12px}.chip.ok{color:var(--ok);border-color:#1f5b44}.chip.bad{color:var(--bad);border-color:#5b2630}
+main{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(300px,1fr);gap:16px;padding:16px 20px;max-width:1500px;margin:0 auto}@media(max-width:980px){main{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px}.card h2{font-size:12px;text-transform:uppercase;letter-spacing:1.2px;color:var(--mu);margin:0 0 10px;font-weight:600}
+#stage{position:relative;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:radial-gradient(circle at 50% 30%,#18223a,#0b0e14);aspect-ratio:4/3}#stage canvas{position:absolute;inset:0;width:100%;height:100%}
+#msg{position:absolute;left:0;right:0;bottom:0;padding:16px 20px;background:linear-gradient(transparent,#000c);font-size:22px;font-weight:700}#msg small{display:block;font-weight:400;font-size:14px;color:#cfd8ea}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.kv{background:var(--panel2);border-radius:10px;padding:8px 12px}.kv span{display:block;color:var(--mu);font-size:11px;text-transform:uppercase;letter-spacing:1px}.kv b{font-size:22px;font-variant-numeric:tabular-nums}
+.mode{font-size:26px;font-weight:700}
+button{background:var(--acc);color:#07101f;border:0;border-radius:10px;padding:11px 16px;font:inherit;font-weight:650;cursor:pointer}button.sec{background:var(--panel2);color:var(--tx);border:1px solid var(--line)}
+.btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}.small{font-size:12px;color:var(--mu)}label.sw{display:flex;gap:8px;align-items:center;margin-top:10px;color:var(--mu);font-size:13px}
+</style></head><body>
+<header><h1>Motion Live</h1><span class="chip" id="cRelay"></span><span class="chip" id="cWatch"></span><span class="chip" id="cModel"></span><span class="sp"></span><span class="small" id="cInfo"></span></header>
+<main>
+ <section><div id="stage"><div id="msg">Press Calibrate<small>Stand like in the collection sessions, then hold your arm straight out in front, level, palm down.</small></div></div></section>
+ <aside style="display:grid;gap:14px;align-content:start">
+  <div class="card"><h2>What is moving</h2><div class="mode" id="mode">-</div><div class="small" id="modeSub">shoulder share of the hand's motion</div></div>
+  <div class="card"><h2>Joint angles</h2><div class="grid"><div class="kv"><span>Shoulder forward</span><b id="aFlex">-</b></div><div class="kv"><span>Shoulder sideways</span><b id="aAbd">-</b></div><div class="kv"><span>Elbow bend</span><b id="aElb">-</b></div><div class="kv"><span>Forearm twist rate</span><b id="aTw">-</b></div></div></div>
+  <div class="card"><h2>Anatomy constraints <span class="small">(each on/off on its own)</span></h2><div id="cons"></div><div class="small" id="consInfo" style="margin-top:8px"></div></div>
+  <div class="card"><h2>Control</h2><div class="btns"><button id="cal">Calibrate</button><button class="sec" id="reset">Reset model memory</button></div>
+   <label class="sw"><input type="checkbox" id="baro" checked> use barometer</label>
+   <label class="sw"><input type="checkbox" id="trail" checked> show hand trail</label>
+   <div class="small" style="margin-top:10px" id="stats"></div></div>
+ </aside>
+</main>
+<script src="assets/three.min.js"></script><script src="shared.js"></script>
+<script>
+'use strict';
+const Q=new URLSearchParams(location.search),FAKE=Q.has('fake');const $=id=>document.getElementById(id);
+const L1=.30,L2=.26;
+let gru=null,fs=null,model=null,axis=Q.get('axis')||'3',yaw=0,calibrated=false,truth=null;
+let u=[0,-1,0],D=[0,0,1],uSm=[0,-1,0],twist=0;const hist=[];let share=.5,act=0,steps=0,hz=0,lastHz=performance.now(),inf=0;
+const S={watch:false,relay:false,hr:null,bat:null};let lastPacket=0;
+let anatP={s:-1,phi_max:145,slack:12,lim:null},feasEma=1,af=new AnatFilter(anatP);let cal=null;const rawD=[];let err=null,errAvg=null;
+fetch('/model.json').then(r=>r.ok?r.json():Promise.reject(new Error('missing'))).then(j=>{
+ model=j;if(j.anat){anatP=j.anat;af=new AnatFilter(anatP);buildCons(j.anat)}gru=new GRU(j);fs=new FeatureStream(axis,{baro:j.baro!==false});$('baro').checked=j.baro!==false;if(j.baro===false)$('baro').disabled=true;
+ const t=j.test_median_deg;$('cModel').textContent=t!=null?`model: ${t.toFixed(1)}° median on unseen session`:'model loaded';$('cModel').className='chip ok';
+}).catch(()=>{$('cModel').textContent='no model.json yet - run train.py';$('cModel').className='chip bad'});
+
+const CONS=[['preset','preset hinge limits (hand-set: bend up to 145°, upper arm on one side of the forearm)'],['bend','learned: elbow bend range'],['side','learned: forearm-side range (which way around the forearm the upper arm can sit)'],['vbend','learned: elbow bend-speed limit'],['vside','learned: twist-speed limit']];
+function buildCons(A){
+ const box=$('cons');box.innerHTML='';const lim=A.lim,def=A.defaults||{};
+ for(const [k,label] of CONS){
+  const learned=k!=='preset',avail=!learned||!!lim&&!(k==='side'&&lim.p_full);
+  const l=document.createElement('label');l.className='sw';l.innerHTML=`<input type="checkbox" id="c_${k}"> <span>${label} <span class="small" id="a_${k}"></span></span>`;box.appendChild(l);
+  const cb=l.querySelector('input');cb.checked=avail&&!!def[k];cb.disabled=!avail;af.flags[k]=cb.checked;
+  cb.onchange=()=>{af.flags[k]=cb.checked;af.reset()};
+ }
+ $('consInfo').textContent=lim?`Learned from your camera data: bend ${lim.phi_lo.toFixed(0)}–${lim.phi_hi.toFixed(0)}°, upper arm ${(lim.p_c-lim.p_lo).toFixed(0)}…${(lim.p_c+lim.p_hi).toFixed(0)}° around the forearm, bend ≤ ${lim.dphi_max.toFixed(0)}°/s, swing ≤ ${lim.vside_max.toFixed(0)}°/s. The % shows how often each switched-on constraint is changing the output.`:'No learned limits in this model (not enough camera data).';
+}
+buildCons({lim:null,defaults:{}});
+setInterval(()=>{for(const [k] of CONS){const e=$('a_'+k);if(e)e.textContent=af.flags[k]?`(active ${(af.act[k]*100).toFixed(0)}%)`:''}},500);
+const link=new WatchLink(`ws://${location.host}/ws`,{
+ onStatus:o=>Object.assign(S,o),
+ onPacket:(m,now)=>{
+  lastPacket=now;
+  if(cal){const d=decodePacket(m,axis).D;rawD.push([now,d])}
+  if(!fs)return;
+  fs.push(m);fs.drain((tg,x)=>{
+   fs.yaw=yaw;                 // (applied at the next step; yaw only changes at calibration)
+   const t0=performance.now();u=gru.step(x);inf=inf*.95+(performance.now()-t0)*.05;
+   const dN=[x[3],x[4],x[5]];feasEma+=((feasibleAnat(u,[x[0],x[1],x[2]],dN,anatP.s,anatP.phi_max,anatP.slack)?1:0)-feasEma)*.01;
+   u=af.step(u,[x[0],x[1],x[2]],dN);
+   D=[x[0],x[1],x[2]];steps++;hz++;
+   // smoothing + rates
+   uSm=nrm(add(mul(uSm,.55),mul(u,.45)));
+   hist.push({u:uSm,D});if(hist.length>6)hist.shift();
+   if(hist.length===6){const dt=.1,du=angDeg(hist[5].u,hist[0].u)/dt,phi1=angDeg(hist[5].u,hist[5].D),phi0=angDeg(hist[0].u,hist[0].D),dp=Math.abs(phi1-phi0)/dt,k=1-Math.exp(-.02/.3);
+    act+=(du+dp-act)*k;share+=((du/(du+dp+1e-6))-share)*k}
+   twist+=(( x[13])-twist)*.1;                  // gyro about the forearm axis
+   if(FAKE&&truth){const ut=yawRot(truth.u,yaw);err=angDeg(ut,u);errAvg=errAvg==null?err:errAvg*.98+err*.02}
+  });
+ },
+ onOther:(m,now)=>{if(m.p!==undefined&&fs&&$('baro').checked)fs.pushBaro(m.tp,m.p);else if(m.hr!==undefined)S.hr=m.hr;else if(m.bat!==undefined)S.bat=m.bat;else if(m.truth)truth=m.truth}
+});
+
+/* ------------- calibration (same as the collection sessions: arm level in front, palm down) ------------- */
+$('cal').onclick=()=>{
+ if(!fs){return}
+ let n=3;const msg=(a,b)=>{$('msg').innerHTML=a+'<small>'+b+'</small>'};
+ msg('Raise your arm straight out in front','Level with the floor, palm down. Hold still...');
+ const iv=setInterval(()=>{
+  if(n>0){msg(String(n),'Hold the arm straight out in front');n--;return}
+  clearInterval(iv);cal=true;rawD.length=0;msg('Hold still','Measuring...');
+  setTimeout(()=>{
+   cal=null;const t1=performance.now(),sel=rawD.filter(r=>t1-r[0]>200&&t1-r[0]<2000);
+   if(sel.length<40){msg('Calibration failed','Is the watch streaming?');return}
+   let s=[0,0,0];for(const r of sel)s=add(s,r[1]);const d=nrm(s);
+   yaw=Math.atan2(-d[0],d[2]);fs.yaw=yaw;gru.reset();af.reset();fs.fast=null;fs.slow=null;calibrated=true;
+   const el=Math.asin(d[1])*180/Math.PI;
+   msg(Math.abs(el)>25?'Calibrated - but the arm was not level ('+el.toFixed(0)+'°)':'Calibrated','Now move. Keep facing the same way.');
+   setTimeout(()=>{if(calibrated)$('msg').style.display='none'},4000);$('msg').style.display='';
+  },2300);
+ },1000);
+};
+$('reset').onclick=()=>{if(gru){gru.reset();af.reset();fs&&(fs.fast=fs.slow=null)}};
+
+/* ------------- 3D mannequin: your view from behind (your left arm is on the left of the screen) ------------- */
+const stage=$('stage'),R=new THREE.WebGLRenderer({antialias:true,alpha:true});R.setPixelRatio(Math.min(devicePixelRatio,2));stage.prepend(R.domElement);
+const scene=new THREE.Scene(),cam=new THREE.PerspectiveCamera(36,4/3,.1,50);cam.position.set(1.5,.45,-2.1);cam.lookAt(-.1,-.12,.3);
+scene.add(new THREE.HemisphereLight(0xcfe0ff,0x1a2233,1.1));const dl=new THREE.DirectionalLight(0xffffff,.9);dl.position.set(-1,2,-2);scene.add(dl);
+const mat=(c,e=0)=>new THREE.MeshStandardMaterial({color:c,roughness:.45,metalness:.1,emissive:c,emissiveIntensity:e});
+const body=new THREE.Group();scene.add(body);
+const torso=new THREE.Mesh(new THREE.SphereGeometry(.3,28,20),mat(0x2a3550));torso.position.set(-.2,-.3,0);torso.scale.set(.58,1.25,.45);body.add(torso);   // centre between shoulders at x=-0.2? (left shoulder at 0)
+const head=new THREE.Mesh(new THREE.SphereGeometry(.12,24,16),mat(0x3a4a70));head.position.set(-.2,.28,0);body.add(head);
+const shR=new THREE.Mesh(new THREE.SphereGeometry(.07,16,12),mat(0x3a4a70));shR.position.set(-.4,0,0);body.add(shR);
+const rArm=new THREE.Mesh(new THREE.CylinderGeometry(.04,.035,.55,12),mat(0x2a3550));rArm.position.set(-.4,-.28,0);body.add(rArm);
+function limb(c,r){const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r*.85,1,16),mat(c,.25));scene.add(m);return m}
+const upper=limb(0x6ea8ff,.045),fore=limb(0x3ddc97,.038),sJ=new THREE.Mesh(new THREE.SphereGeometry(.065,20,14),mat(0x6ea8ff,.5)),eJ=new THREE.Mesh(new THREE.SphereGeometry(.055,20,14),mat(0x3ddc97,.5)),hJ=new THREE.Mesh(new THREE.SphereGeometry(.05,20,14),mat(0xffb454,.5));
+scene.add(sJ,eJ,hJ);
+const trailGeo=new THREE.BufferGeometry(),TN=120,trailPos=new Float32Array(TN*3);trailGeo.setAttribute('position',new THREE.BufferAttribute(trailPos,3));trailGeo.setDrawRange(0,0);
+const trail=new THREE.Line(trailGeo,new THREE.LineBasicMaterial({color:0xffb454,transparent:true,opacity:.6}));scene.add(trail);let tn=0,tAcc=0;
+const Y=new THREE.Vector3(0,1,0);
+function place(m,a,b){const A=new THREE.Vector3(...a),B=new THREE.Vector3(...b),d=B.clone().sub(A),l=d.length();m.position.copy(A).addScaledVector(d,.5);m.scale.set(1,l,1);m.quaternion.setFromUnitVectors(Y,d.normalize())}
+function resize(){const w=stage.clientWidth,h=stage.clientHeight;R.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix()}addEventListener('resize',resize);resize();
+const SH=[0,0,0];
+function frame(){
+ requestAnimationFrame(frame);
+ const uu=uSm,dd=D,el=add(SH,mul(uu,L1)),wr=add(el,mul(dd,L2));
+ place(upper,SH,el);place(fore,el,wr);sJ.position.set(...SH);eJ.position.set(...el);hJ.position.set(...wr);
+ if(performance.now()-tAcc>40&&$('trail').checked){tAcc=performance.now();for(let i=TN-1;i>0;i--){trailPos[i*3]=trailPos[(i-1)*3];trailPos[i*3+1]=trailPos[(i-1)*3+1];trailPos[i*3+2]=trailPos[(i-1)*3+2]}trailPos[0]=wr[0];trailPos[1]=wr[1];trailPos[2]=wr[2];tn=Math.min(TN,tn+1);trailGeo.setDrawRange(0,tn);trailGeo.attributes.position.needsUpdate=true}
+ trail.visible=$('trail').checked;
+ R.render(scene,cam);
+ // readouts
+ const flex=Math.atan2(uu[2],-uu[1])*180/Math.PI,abd=Math.atan2(uu[0],-uu[1])*180/Math.PI,elb=angDeg(uu,dd);
+ $('aFlex').textContent=calibrated?flex.toFixed(0)+'°':'-';$('aAbd').textContent=calibrated?abd.toFixed(0)+'°':'-';$('aElb').textContent=calibrated?elb.toFixed(0)+'°':'-';
+ $('aTw').textContent=(twist*57.3).toFixed(0)+'°/s';
+ let word='still',col='var(--mu)';
+ if(act>25){word=share>.55?'SHOULDER':share<.35?'ELBOW':'BOTH';col=share>.55?'var(--acc)':share<.35?'var(--ok)':'var(--warn)'}
+ $('mode').textContent=calibrated?word:'-';$('mode').style.color=col;
+ const age=performance.now()-lastPacket;
+ const chip=(id,ok,t)=>{$(id).textContent=t;$(id).className='chip '+(ok?'ok':'bad')};
+ chip('cRelay',S.relay,S.relay?'relay ok':'relay down');chip('cWatch',S.watch&&age<1000,S.watch?`watch ${link.hz.toFixed(0)} Hz${S.hr?' - '+S.hr+' bpm':''}`:'watch not connected');
+ const n=performance.now();if(n-lastHz>1000){$('stats').textContent=`model step ${inf.toFixed(2)} ms, ${(hz*1000/(n-lastHz)).toFixed(0)} steps/s, raw outputs inside anatomy limits ${(feasEma*100).toFixed(0)}%`+(FAKE&&errAvg!=null?`, error vs simulated truth ${errAvg.toFixed(1)}°`:'');hz=0;lastHz=n}
+}
+frame();
+if(FAKE)window.__live={get err(){return errAvg},get calibrated(){return calibrated},get steps(){return steps},get u(){return u},get yaw(){return yaw}};
+</script></body></html>

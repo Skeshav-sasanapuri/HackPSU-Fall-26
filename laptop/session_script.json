@@ -1,0 +1,192 @@
+{
+ "steps": [
+  {
+   "id": "rest0",
+   "dur": 5,
+   "pre": 0,
+   "title": "Stand tall, arm relaxed",
+   "text": "Face forward and let your arm hang by your side. From now to the end: keep your feet planted and do not turn your body.",
+   "cues": null
+  },
+  {
+   "id": "sync_start",
+   "dur": 9,
+   "pre": 4,
+   "title": "Sync flicks",
+   "text": "Hand by your side. On each beep, flick your forearm up to your shoulder and back down, as fast as you can. Only the elbow moves. Three times.",
+   "cues": [
+    1.5,
+    4.5,
+    7.5
+   ]
+  },
+  {
+   "id": "calib",
+   "dur": 6,
+   "pre": 4,
+   "title": "Calibration pose",
+   "text": "Raise your arm straight out in front of you, level with the floor, palm down. Hold completely still.",
+   "cues": null
+  },
+  {
+   "id": "twist",
+   "dur": 10,
+   "pre": 3,
+   "title": "Forearm twists",
+   "text": "Keep the arm straight out in front. Slowly turn the palm up, then back down. Three times.",
+   "cues": null
+  },
+  {
+   "id": "elbow_hang",
+   "dur": 18,
+   "pre": 4,
+   "title": "Elbow only: arm at your side",
+   "text": "Upper arm stays against your body. Bend the elbow so the hand comes to your shoulder, then lower it. Six slow curls.",
+   "cues": null
+  },
+  {
+   "id": "elbow_forward",
+   "dur": 18,
+   "pre": 4,
+   "title": "Elbow only: upper arm forward",
+   "text": "Hold your upper arm straight out in front, level with the floor. Move only the elbow: hand toward your face and back. Six reps.",
+   "cues": null
+  },
+  {
+   "id": "elbow_side",
+   "dur": 18,
+   "pre": 4,
+   "title": "Elbow only: upper arm to the side",
+   "text": "Hold your upper arm out to the side, level, elbow bent. Straighten and bend only the elbow. Six reps.",
+   "cues": null
+  },
+  {
+   "id": "shoulder_forward",
+   "dur": 18,
+   "pre": 4,
+   "title": "Shoulder only: raise forward",
+   "text": "Keep the arm straight. Raise it forward from your side up to level, then lower it. Six reps. Do not bend the elbow.",
+   "cues": null
+  },
+  {
+   "id": "shoulder_side",
+   "dur": 18,
+   "pre": 4,
+   "title": "Shoulder only: raise sideways",
+   "text": "Keep the arm straight. Raise it out to the side up to level, then lower it. Six reps.",
+   "cues": null
+  },
+  {
+   "id": "shoulder_back",
+   "dur": 16,
+   "pre": 4,
+   "title": "Shoulder only: swing backward",
+   "text": "Keep the arm straight. Swing it backward behind you and return. Six reps.",
+   "cues": null
+  },
+  {
+   "id": "shoulder_across",
+   "dur": 16,
+   "pre": 4,
+   "title": "Shoulder only: across the body",
+   "text": "Keep the arm straight. Hold it level in front, sweep it across your chest and back. Six reps.",
+   "cues": null
+  },
+  {
+   "id": "shoulder_rotate",
+   "dur": 18,
+   "pre": 4,
+   "title": "Shoulder rotation",
+   "text": "Upper arm against your side, elbow bent 90 degrees, forearm pointing forward. Rotate at the shoulder so the hand swings outward and back, like a door. Elbow stays at your side. Six reps.",
+   "cues": null
+  },
+  {
+   "id": "both",
+   "dur": 18,
+   "pre": 4,
+   "title": "Shoulder and elbow together",
+   "text": "Raise the arm forward while curling the elbow at the same time, then lower. Six reps.",
+   "cues": null
+  },
+  {
+   "id": "shoulder_forward_slow",
+   "dur": 24,
+   "pre": 4,
+   "title": "Very slow shoulder raise",
+   "text": "Straight arm. Raise it forward very slowly, five seconds up, five seconds down. Twice.",
+   "cues": null
+  },
+  {
+   "id": "elbow_hang_slow",
+   "dur": 24,
+   "pre": 4,
+   "title": "Very slow elbow curl",
+   "text": "Arm at your side. Curl very slowly, five seconds up, five seconds down. Twice.",
+   "cues": null
+  },
+  {
+   "id": "free_1",
+   "dur": 45,
+   "pre": 4,
+   "title": "Free movement",
+   "text": "Wave your arm around in any direction. Mix shoulder and elbow, vary the speed, stop and start. Keep your feet planted.",
+   "cues": null
+  }
+ ],
+ "activity": {
+  "id": "activity_{ACTID}",
+  "dur": 45,
+  "pre": 4,
+  "title": "Your activity: {ACT}",
+  "text": "Do your {ACT} motion. First slowly, then at normal speed.",
+  "cues": null
+ },
+ "after_activity": [
+  {
+   "id": "free_2",
+   "dur": 45,
+   "pre": 4,
+   "title": "Free movement again",
+   "text": "Wave your arm around in any direction, different from last time.",
+   "cues": null
+  },
+  {
+   "id": "sync_end",
+   "dur": 9,
+   "pre": 4,
+   "title": "Sync flicks again",
+   "text": "Hand by your side. On each beep, flick your forearm up to your shoulder and back down, fast. Three times.",
+   "cues": [
+    1.5,
+    4.5,
+    7.5
+   ]
+  },
+  {
+   "id": "rest1",
+   "dur": 5,
+   "pre": 0,
+   "title": "Stand tall, arm relaxed",
+   "text": "Arm hanging by your side. Done in a moment.",
+   "cues": null
+  }
+ ],
+ "quick": [
+  "rest0:3",
+  "sync_start:6",
+  "calib:6",
+  "elbow_hang:6",
+  "elbow_forward:6",
+  "elbow_side:6",
+  "shoulder_forward:6",
+  "shoulder_side:6",
+  "shoulder_back:6",
+  "shoulder_across:6",
+  "shoulder_forward_slow:6",
+  "both:6",
+  "free0:6",
+  "sync_end:6",
+  "rest1:2"
+ ],
+ "note": "Session steps used by collect.html. {ACT} in the activity step is replaced by the chosen activity."
+}
