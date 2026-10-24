@@ -42,6 +42,8 @@ export class PhoneSensor {
         try {
           const m = JSON.parse(t);
           if (m && m.event === 'presence') this.set({ viewer: !!m.viewer });
+          // clock sync: answer with the phone clock so the laptop can measure the delay
+          else if (m && typeof m.ping === 'number') this.sock.send(JSON.stringify({ pong: m.ping, tl: m.tl, tp: +performance.now().toFixed(2) }));
         } catch { /* not for us */ }
       },
     });
@@ -114,6 +116,8 @@ export class PhoneSensor {
     if (this.convMode == null) return;
     const out = this.convMode === 'B' ? qconj(this.lastQ) : this.lastQ;
     this.buf.push({ pq: out.map((v) => +v.toFixed(5)), t: +performance.now().toFixed(1) });
+    // send at once: waiting to batch adds up to a frame of lag (about 60 small messages a second)
+    this.flush();
   }
 
   /* The quaternion should be device->world (like Android's rotation vector). Do not assume it: the accelerometer

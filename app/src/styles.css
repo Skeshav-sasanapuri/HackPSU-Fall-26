@@ -130,7 +130,7 @@ summary { cursor: pointer; font-family: var(--display); font-weight: 700; font-s
 .kv b { font-weight: 700; }
 .kv b.bad { color: var(--red); }
 
-.debug { position: fixed; right: 12px; bottom: 12px; width: 300px; background: #17130ee8; color: #efe6d2; font: 12px/1.45 ui-monospace, Consolas, monospace; padding: 10px 12px; z-index: 50; white-space: pre; }
+.debug { position: fixed; right: 12px; bottom: 12px; width: 400px; background: #17130ee8; color: #efe6d2; font: 12px/1.45 ui-monospace, Consolas, monospace; padding: 10px 12px; z-index: 50; white-space: pre; }
 
 @media (max-width: 820px) {
   .top { padding: 10px 16px; }

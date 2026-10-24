@@ -9,12 +9,18 @@
 
 Tests: `cd app && npm test` (maths, calibration, simulator) and `cd relay && npm test` (relay must be running).
 
-## Deploy
-1. Relay: `cd relay && npx wrangler login && npm run deploy`. Note the `https://jab-relay.<you>.workers.dev` address.
-2. App: `cd app`, then `npx vercel login`, `npx vercel link`, and in the Vercel project settings add the environment
-   variable `VITE_RELAY_URL` = the relay address. Then `npx vercel --prod`.
-3. Watch: in `watch-app/.../MainActivity.kt` set `RELAY` to the same address, rebuild and install in Android Studio.
-4. Domain: Vercel project > Settings > Domains > add the MLH `.tech` domain, then follow Vercel's DNS instructions.
+## Deploy (already set up)
+- Relay: `cd relay && npm run deploy` -> https://jab-relay.jab-relay.workers.dev (address is in `app/.env.production`
+  and in the watch app's `RELAY` constant).
+- App: `bash scripts/deploy-app.sh` -> Vercel project `app`, live at https://watcher.fit (once DNS is set) and
+  https://app-theta-orcin-66.vercel.app. The script deploys from a git-free copy because Vercel blocks deploys whose
+  commit author email is not on the Vercel account.
+- Domain DNS at Porkbun: `A  @  76.76.21.21` and `CNAME  www  cname.vercel-dns.com` (delete Porkbun's parking records).
+
+## Measuring lag
+Open any laptop page with `?debug=1`. "delay" is sensor-to-laptop time per device (from clock-synced pings), "rtt" is
+the ping round trip, "render" is frames per second. From the dev laptop to the Cloudflare relay the round trip was
+about 55 ms.
 
 ## How a session connects
 - Laptop opens a session (6-character code) and joins the relay room as the viewer.

@@ -27,12 +27,12 @@ function stream(session: string) {
       w.send(JSON.stringify({ bat: 88 }));
       setInterval(() => {
         const now = performance.now(), t = (now - t0) / 1000;
-        const batch = [3, 2, 1, 0].map((i) => {
+        const batch = [1, 0].map((i) => {
           const p = arm.watchPacket(t - i * 0.01, +(now - i * 10 + WATCH_CLOCK_OFFSET).toFixed(3));
           return { ...p, q: p.q.map(round), g: p.g.map(round), a: p.a.map(round) };
         });
         if (w.readyState === 1) w.send(JSON.stringify(batch));
-      }, 40);
+      }, 20);
     };
     w.onmessage = (ev) => {
       const m = JSON.parse(String(ev.data));
@@ -52,6 +52,10 @@ function stream(session: string) {
         });
         if (p.readyState === 1) p.send(JSON.stringify(batch));
       }, 40);
+    };
+    p.onmessage = (ev) => {
+      const m = JSON.parse(String(ev.data));
+      if (m.ping !== undefined) p.send(JSON.stringify({ pong: m.ping, tl: m.tl, tp: +performance.now().toFixed(2) }));
     };
     p.onclose = () => process.exit(0);
   }

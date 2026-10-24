@@ -61,13 +61,13 @@ const val RECORD_HEART_RATE = false
 // Characters a pairing / session code can contain (no 0/O, 1/I).
 private const val CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
 private val SESSION_RE = Regex("[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}")
-private const val FRAME_SAMPLES = 4      // motion samples per websocket frame (about 25 frames a second)
+private const val FRAME_SAMPLES = 2      // motion samples per websocket frame (about 50 frames a second; fewer = less delay)
 
 /**
  * Jab watch app (the old Motion Collector, same sensor packets). Pairing:
  *  - first run: shows a 4-character code (registered with the relay); type it once on the laptop
  *  - after that the watch is remembered: open the app, the laptop invites it to its session, tap Start
- * Motion packets are sent in batches of 4 as a JSON array.
+ * Motion packets are sent in batches of 2 as a JSON array.
  *
  *  motion   {"t":ms,"dg":ms,"da":ms,"q":[x,y,z,w],"g":[..],"a":[..]}
  *           t  = timestamp of the orientation sample in ms since watch boot (SystemClock.elapsedRealtime clock)

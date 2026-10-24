@@ -36,10 +36,12 @@ export class Stage {
   private look = new THREE.Vector3();
   private camK = 1;
   private shake = 0;
+  /** frames per second, smoothed */
+  fps = 0;
 
   constructor() {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); // the ink-outline pass draws everything twice
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -58,7 +60,9 @@ export class Stage {
     this.last = performance.now();
     const loop = (now: number) => {
       this.raf = requestAnimationFrame(loop);
-      const dt = Math.min(0.05, (now - this.last) / 1000);
+      const raw = (now - this.last) / 1000;
+      if (raw > 0) this.fps += (1 / raw - this.fps) * 0.05;
+      const dt = Math.min(0.05, raw);
       this.last = now;
       this.t += dt;
       this.step(dt);
