@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Detection } from './core/detector';
 import { MoveId } from './core/moves';
+import { useProfile } from './store';
 
 /* Session history and lesson progress, kept in localStorage. */
 export type Mode = 'mirror' | 'train' | 'bag';
@@ -23,6 +24,11 @@ export interface SessionRecord {
   score?: number;
   stars?: number;
   rounds?: number;
+  /** the boxer's name and character at the time */
+  who?: string;
+  body?: 'male' | 'female';
+  /** lesson tries: score 0..100, right move or not, coaching tips */
+  tries?: { score: number; correct: boolean; tips: string[] }[];
 }
 
 interface HistoryStore {
@@ -66,12 +72,13 @@ export class SessionTally {
 
   finish(mode: Mode, title: string, extra: Partial<SessionRecord> = {}): SessionRecord {
     const sp = this.strikes;
+    const p = useProfile.getState();
     return {
       id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
       mode, title, startedAt: this.startedAt, endedAt: Date.now(), counts: this.counts, total: this.total,
       bestSpeed: sp.length ? Math.max(...sp) : 0, avgSpeed: sp.length ? sp.reduce((a, b) => a + b, 0) / sp.length : 0,
       maxForceN: this.maxForceN, accuracy: this.called ? this.calledRight / this.called : null, combos: this.combos,
-      score: this.score || undefined, ...extra,
+      score: this.score || undefined, who: p.name || undefined, body: p.body, ...extra,
     };
   }
 }

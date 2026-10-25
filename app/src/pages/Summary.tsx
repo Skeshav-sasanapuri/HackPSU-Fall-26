@@ -15,6 +15,7 @@ export function Summary() {
 }
 
 export const fmtDate = (t: number) => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+export const fmtTime = (t: number) => new Date(t).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 
 function verdict(r: SessionRecord) {
   if ((r.accuracy ?? 0) >= 0.8 || (r.stars ?? 0) >= 3) return 'Great work!';
@@ -28,7 +29,7 @@ function Poster({ rec }: { rec: SessionRecord }) {
   const counts = MOVE_IDS.filter((m) => rec.counts[m]).map((m) => [m, rec.counts[m]!] as const);
   const maxC = Math.max(1, ...counts.map(([, n]) => n));
   const share = async () => {
-    const txt = `Jab ${rec.title} (${fmtDate(rec.startedAt)}): ${rec.total} moves, peak ${rec.bestSpeed.toFixed(1)} m/s, ` +
+    const txt = `Watch how u Box: ${rec.title} (${fmtDate(rec.startedAt)}): ${rec.total} moves, peak ${rec.bestSpeed.toFixed(1)} m/s, ` +
       `${Math.round(rec.maxForceN).toLocaleString()} N est.${rec.accuracy != null ? `, ${Math.round(rec.accuracy * 100)}% on call` : ''}` +
       `${rec.combos ? `, ${rec.combos} combos` : ''}. ${window.location.origin}`;
     try { await navigator.clipboard.writeText(txt); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* no clipboard */ }
@@ -39,7 +40,7 @@ function Poster({ rec }: { rec: SessionRecord }) {
       <article className="poster-sheet taped">
         <div className="poster-head">
           <div className="inked red stars-row">★ ★</div>
-          <div className="inked jabword">Jab</div>
+          <div className="inked jabword">Watch how u Box</div>
           <div className="inked red stars-row">★ ★</div>
         </div>
         <h2 className="poster-title">{rec.mode === 'bag' ? 'Session summary' : rec.title}</h2>
@@ -76,7 +77,7 @@ function Poster({ rec }: { rec: SessionRecord }) {
             ))}
           </div>
         )}
-        <div className="poster-date"><span className="inked" style={{ fontSize: 30 }}>Jab</span><span>{fmtDate(rec.startedAt)}</span></div>
+        <div className="poster-date"><span className="inked" style={{ fontSize: 30 }}>Watch how u Box</span><span>{fmtDate(rec.startedAt)}</span></div>
       </article>
       <div className="tickets">
         <button className="ticketbtn" onClick={() => nav('/home')}>Return to home</button>

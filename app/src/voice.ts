@@ -1,5 +1,8 @@
-/* The coach's voice. Uses recorded clips listed in /voice/manifest.json when present ({"Jab!": "jab.mp3", ...}, for
- * example made with ElevenLabs), otherwise the browser's speech synthesis with a low, gruff setting. */
+import { elevenUrl } from './ai/eleven';
+import { useKeys } from './ai/keys';
+
+/* The coach's voice. Uses recorded clips listed in /voice/manifest.json when present ({"Jab!": "jab.mp3", ...}),
+ * then ElevenLabs when the user added a key, otherwise the browser's speech synthesis with a low, gruff setting. */
 let clips: Record<string, string> | null = null;
 const cache = new Map<string, HTMLAudioElement>();
 let enabled = true;
@@ -17,6 +20,36 @@ function pickVoice() {
   return chosen;
 }
 
+let token = 0;
+let playing: HTMLAudioElement | null = null;
+let queue: Promise<void> = Promise.resolve();
+
+function speak(text: string, opts: { rate?: number; interrupt?: boolean }) {
+  if (typeof speechSynthesis === 'undefined') return;
+  if (opts.interrupt !== false) speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.rate = opts.rate ?? 1.05;
+  u.pitch = 0.75;
+  const v = pickVoice();
+  if (v) u.voice = v;
+  speechSynthesis.speak(u);
+}
+
+/** ElevenLabs lines play in order; an interrupting line drops whatever is queued or playing. */
+function sayEleven(key: string, text: string, opts: { rate?: number; interrupt?: boolean }) {
+  if (opts.interrupt !== false) { token++; playing?.pause(); playing = null; queue = Promise.resolve(); }
+  const my = token;
+  const url = elevenUrl(key, text);
+  queue = queue.then(async () => {
+    let u: string;
+    try { u = await url; } catch { if (my === token) speak(text, { ...opts, interrupt: false }); return; }
+    if (my !== token) return;
+    const a = new Audio(u);
+    playing = a;
+    await new Promise<void>((done) => { a.onended = a.onerror = a.onpause = () => done(); a.play().catch(() => done()); });
+  });
+}
+
 export const voice = {
   setEnabled(on: boolean) { enabled = on; if (!on) voice.stop(); },
   isEnabled() { return enabled; },
@@ -30,14 +63,18 @@ export const voice = {
       void a.play().catch(() => {});
       return;
     }
-    if (typeof speechSynthesis === 'undefined') return;
-    if (opts.interrupt !== false) speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.rate = opts.rate ?? 1.05;
-    u.pitch = 0.75;
-    const v = pickVoice();
-    if (v) u.voice = v;
-    speechSynthesis.speak(u);
+    const key = useKeys.getState().eleven;
+    if (key) sayEleven(key, text, opts);
+    else speak(text, opts);
   },
-  stop() { if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel(); },
+  /** speak once now, resolving with an error message if ElevenLabs failed (for the key check) */
+  async test(text: string): Promise<string> {
+    const key = useKeys.getState().eleven;
+    if (!key) return 'No key.';
+    try { const a = new Audio(await elevenUrl(key, text)); await a.play(); return ''; } catch (e) { return (e as Error).message; }
+  },
+  stop() {
+    token++; playing?.pause(); playing = null; queue = Promise.resolve();
+    if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
+  },
 };

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AiKeys } from '../components/AiKeys';
 import { ActivityBar, ChipState, DeviceChip } from '../components/DeviceChip';
 import { PhoneEdgePicker } from '../components/PhoneEdgePicker';
 import { Qr } from '../components/Qr';
@@ -67,7 +68,10 @@ export function Connect() {
         </section>
 
         <div className="trio-gap" aria-hidden />
-        <WatchPanel session={code} status={status} />
+        <div className="trio-col">
+          <WatchPanel session={code} status={status} />
+          <AiKeys />
+        </div>
       </div>
 
       {phoneUp && watchUp && (

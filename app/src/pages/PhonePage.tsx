@@ -22,7 +22,7 @@ export function PhonePage() {
 function Header({ code }: { code: string }) {
   return (
     <header className="top">
-      <span className="mark">JAB<i /></span>
+      <span className="mark">WATCH HOW U BOX<i /></span>
       {code && <span className="ticket">SESSION<b>{code}</b></span>}
     </header>
   );

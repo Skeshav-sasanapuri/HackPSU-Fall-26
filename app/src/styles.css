@@ -35,7 +35,7 @@ button, input, select { font: inherit; color: inherit; }
 /* ---------- shell ---------- */
 .shell { height: 100vh; min-height: 560px; display: flex; flex-direction: column; }
 .top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 28px; border-bottom: var(--rule); background: var(--paper); position: sticky; top: 0; z-index: 5; }
-.mark { font-family: var(--display); font-weight: 900; font-size: 34px; letter-spacing: .04em; text-decoration: none; display: flex; align-items: baseline; gap: 10px; line-height: 1; }
+.mark { font-family: var(--display); font-weight: 900; font-size: 28px; letter-spacing: .04em; text-decoration: none; white-space: nowrap; display: flex; align-items: baseline; gap: 10px; line-height: 1; }
 .mark i { font-style: normal; display: inline-block; width: 12px; height: 12px; background: var(--red); transform: translateY(-2px); }
 .crumbs { display: flex; gap: 6px; font-family: var(--display); font-weight: 700; font-size: 18px; text-transform: uppercase; letter-spacing: .08em; }
 .crumbs span { padding: 2px 10px; color: var(--ink-2); }

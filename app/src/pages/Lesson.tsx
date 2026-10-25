@@ -100,7 +100,7 @@ function Runner({ lesson }: { lesson: LessonT }) {
     try {
       // 1. calibrate (once per visit)
       if (!calibrated.current) {
-        if (!hub.status().watch.up) { setError('The watch is not connected. Open the Jab app on the watch and tap Start.'); setPhase('intro'); return; }
+        if (!hub.status().watch.up) { setError('The watch is not connected. Open the Watch how u Box app on the watch and tap Start.'); setPhase('intro'); return; }
         setPhase('calibrate'); setProgress(0);
         voice.say('Arms straight out in front. Hold still.');
         const r = await calibrateHold(arm, hub, phoneAxis, hub.status().phone.up, sig, setCount, setProgress);
@@ -158,7 +158,7 @@ function Runner({ lesson }: { lesson: LessonT }) {
       // 4. results
       const n = stars(list);
       setStars(lesson.id, n);
-      addSession(tally.finish('train', `Lesson: ${lesson.title}`, { stars: n, score: Math.round(list.reduce((s, a) => s + a.score, 0) / Math.max(1, list.length)) }));
+      addSession(tally.finish('train', `Lesson: ${lesson.title}`, { stars: n, score: Math.round(list.reduce((s, a) => s + a.score, 0) / Math.max(1, list.length)), tries: list.map((a) => ({ score: a.score, correct: a.correct, tips: a.tips })) }));
       setPhase('done');
       setCaption(n === 3 ? 'Champion work!' : n === 2 ? 'Solid. Again?' : n === 1 ? 'Keep at it' : 'Back to basics');
       voice.say(n >= 2 ? 'Good work, kid.' : 'Again. You can do better.');

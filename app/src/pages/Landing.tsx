@@ -16,7 +16,7 @@ export function Landing() {
   return (
     <div className="landing">
       <div className="ltitle">
-        <h1 className="inked">Jab</h1>
+        <h1 className="inked">Watch how<br />u Box</h1>
         <div className="inked mustard ltag">Boxing coach</div>
       </div>
 

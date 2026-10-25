@@ -60,12 +60,12 @@ function Shell() {
       <div className="shell">
         <button className={`menutab ${curtain.open ? 'hide' : ''}`} onClick={curtain.toggle} aria-label="Menu"><i /><i /><i /></button>
         <header className={`top curtain ${curtain.open ? 'open' : ''}`} onMouseEnter={curtain.keep} onMouseLeave={() => curtain.closeSoon()}>
-          <Link to="/" className="mark">JAB<i /></Link>
+          <Link to="/" className="mark">WATCH HOW U BOX<i /></Link>
           <nav className="crumbs" aria-label="Steps">
-            <NavLink to="/setup" className={step === 'setup' ? 'on' : ''} style={{ textDecoration: 'none' }}><span className={step === 'setup' ? 'on' : ''}>1 You</span></NavLink>
-            <NavLink to="/connect" style={{ textDecoration: 'none' }}><span className={step === 'connect' ? 'on' : ''}>2 Connect</span></NavLink>
-            <NavLink to="/calibrate" style={{ textDecoration: 'none' }}><span className={step === 'calibrate' ? 'on' : ''}>3 Calibrate</span></NavLink>
-            <NavLink to="/home" style={{ textDecoration: 'none' }}><span className={['/home', '/mirror', '/train', '/bag', '/history', '/summary'].some((r) => pathname.startsWith(r)) ? 'on' : ''}>4 Box</span></NavLink>
+            <NavLink to="/setup" className={step === 'setup' ? 'on' : ''} style={{ textDecoration: 'none' }}><span className={step === 'setup' ? 'on' : ''}>You</span></NavLink>
+            <NavLink to="/connect" style={{ textDecoration: 'none' }}><span className={step === 'connect' ? 'on' : ''}>Connect</span></NavLink>
+            <NavLink to="/calibrate" style={{ textDecoration: 'none' }}><span className={step === 'calibrate' ? 'on' : ''}>Calibrate</span></NavLink>
+            <NavLink to="/home" style={{ textDecoration: 'none' }}><span className={['/home', '/mirror', '/train', '/bag', '/history', '/summary'].some((r) => pathname.startsWith(r)) ? 'on' : ''}>Box</span></NavLink>
           </nav>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             {SIM && <span className="simflag">Simulated</span>}

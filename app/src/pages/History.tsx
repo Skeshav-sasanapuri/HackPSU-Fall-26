@@ -1,8 +1,9 @@
 import { useNavigate } from 'react-router-dom';
+import { ReportButton } from '../components/Report';
 import { Stars } from '../components/Stars';
 import { useStageConfig } from '../components/StageView';
 import { useHistory } from '../history';
-import { fmtDate } from './Summary';
+import { fmtDate, fmtTime } from './Summary';
 
 /* Every session, newest first. Stored in this browser (localStorage). */
 export function History() {
@@ -27,7 +28,7 @@ export function History() {
             <span className="hmode inked">{r.mode === 'bag' ? 'Bag' : r.mode === 'train' ? 'Train' : 'Mirror'}</span>
             <span className="htitle">
               <b>{r.title}</b>
-              <small>{fmtDate(r.startedAt)} · {Math.max(1, Math.round((r.endedAt - r.startedAt) / 60000))} min</small>
+              <small>{fmtDate(r.startedAt)}, {fmtTime(r.startedAt)} · {Math.max(1, Math.round((r.endedAt - r.startedAt) / 60000))} min {r.who && <>· {r.who}{r.body ? ` (${r.body})` : ''}</>}</small>
             </span>
             <span className="hstat"><small>Moves</small><b>{r.total}</b></span>
             <span className="hstat"><small>Best</small><b>{r.bestSpeed.toFixed(1)}</b></span>
@@ -37,6 +38,7 @@ export function History() {
       </div>
       <div className="trio-foot" style={{ gap: 12 }}>
         <button className="btn small" style={{ background: 'var(--paper)', color: 'var(--ink)' }} onClick={() => nav('/home')}>← Modes</button>
+        <ReportButton />
         {sessions.length > 0 && <button className="btn small" onClick={() => { if (confirm('Delete all session history on this browser?')) clear(); }}>Clear history</button>}
       </div>
     </main>
