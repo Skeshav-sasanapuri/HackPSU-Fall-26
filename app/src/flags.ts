@@ -11,3 +11,5 @@ function flag(name: string): boolean {
 }
 export const SIM = flag('sim');
 export const DEBUG = flag('debug');
+/** use the three.js Mixamo test characters when no real model is installed */
+export const TEST_MODEL = flag('model');

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OutlineEffect } from 'three/examples/jsm/effects/OutlineEffect.js';
 import { Boxer, COACH_COLORS, GhostArm } from './boxer';
+import { Fighter } from './fighter';
 import { Gym, buildGym } from './gym';
 
 /* The 3D stage shared by the calibrate / home / mirror screens: one renderer, one gym, one boxer.
@@ -22,7 +23,8 @@ export class Stage {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.PerspectiveCamera(40, 1, 0.05, 60);
-  readonly boxer = new Boxer();
+  /** the user's character: the built-in placeholder until a rigged model is swapped in */
+  boxer: Fighter = new Boxer();
   readonly ghost = new GhostArm();
   readonly gym: Gym;
   /** the old coach, only shown in lessons */
@@ -86,6 +88,18 @@ export class Stage {
     this.host = null;
   }
 
+  /** Swap the user's character (keeps stance and position). */
+  setFighter(f: Fighter) {
+    const old = this.boxer;
+    f.setLead(old.lead);
+    f.root.position.copy(old.root.position);
+    f.root.rotation.copy(old.root.rotation);
+    this.scene.remove(old.root);
+    old.dispose?.();
+    this.scene.add(f.root);
+    this.boxer = f;
+  }
+
   onFrame(fn: FrameFn) { this.frames.add(fn); return () => { this.frames.delete(fn); }; }
 
   setShot(shot: Shot, instant = false) {
@@ -138,7 +152,7 @@ export class Stage {
     this.camera.position.y += (Math.random() - 0.5) * sh;
     this.camera.lookAt(this.look);
 
-    this.boxer.idle(t);
+    this.boxer.update(dt, t);
     const sdt = performance.now() < this.freezeUntil ? 0 : dt;
     for (const f of this.frames) f(sdt, t);
     this.gym.update(dt, t);

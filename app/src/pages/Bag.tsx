@@ -12,6 +12,7 @@ import { useRecalibrateKey } from '../hooks';
 import { useArm, useHub } from '../hubContext';
 import { simDo, useSimPuppet } from '../lessons';
 import { BagHit, HeavyBag, ImpactFx } from '../scene/bag';
+import { useLink } from '../components/SensorGuard';
 import { getStage } from '../scene/stage';
 import { sfx } from '../sfx';
 import { useProfile } from '../store';
@@ -141,8 +142,17 @@ function BagGame() {
 
   // game clock
   useEffect(() => {
+    let prev = performance.now();
     const id = setInterval(() => {
-      const G = g.current, now = performance.now();
+      const G = g.current, now = performance.now(), step = now - prev;
+      prev = now;
+      if (st.current !== 'round' && st.current !== 'rest') return;
+      // a sensor dropped: the clock and the calls wait
+      if (!useLink.getState().ok) {
+        G.endsAt += step; G.nextCallAt += step;
+        if (G.call) G.call.deadline += step;
+        return;
+      }
       if (st.current !== 'round') return;
       if (G.call?.result === 'live' && now > G.call.deadline) { G.call.result = 'late'; G.streak = 0; G.nextCallAt = now + 1200; }
       if (!G.call || G.call.result !== 'live') {

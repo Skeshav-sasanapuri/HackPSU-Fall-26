@@ -263,3 +263,21 @@
 }
 
 .hudchips.static { position: static; }
+
+/* ---------- customise ---------- */
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 10px; }
+.swatches button { width: 34px; height: 34px; border: 3px solid var(--ink); cursor: pointer; box-shadow: 2px 2px 0 var(--ink); }
+.swatches button[aria-pressed='true'] { outline: 3px solid var(--red); outline-offset: 2px; }
+input[type=range].skin, input[type=range].hue { -webkit-appearance: none; appearance: none; width: 100%; height: 22px; border: 3px solid var(--ink); border-radius: 0; cursor: pointer; }
+input[type=range].hue { background: linear-gradient(90deg, hsl(0 68% 42%), hsl(60 68% 42%), hsl(120 68% 42%), hsl(180 68% 42%), hsl(240 68% 42%), hsl(300 68% 42%), hsl(359 68% 42%)); height: 16px; }
+input[type=range].skin::-webkit-slider-thumb, input[type=range].hue::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 34px; background: var(--thumb, var(--paper)); border: 3px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); }
+input[type=range].skin::-moz-range-thumb, input[type=range].hue::-moz-range-thumb { width: 18px; height: 30px; background: var(--thumb, var(--paper)); border: 3px solid var(--ink); border-radius: 0; }
+.pick svg { height: 70px; }
+
+/* ---------- sensor loss ---------- */
+.lostveil { position: absolute; inset: 0; background: rgba(20, 12, 6, .55); display: grid; place-items: center; z-index: 20; }
+.lostcard { width: min(560px, 90%); transform: rotate(-1deg); }
+.lostcard p { font-weight: 500; }
+.toast { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%) rotate(-.5deg); z-index: 15; font-weight: 600; max-width: 90%; animation: countpop .4s both; }
+.trio-page { display: flex; flex-direction: column; }
+.trio-page > .trio-foot { margin-top: auto; padding-top: 26px; }

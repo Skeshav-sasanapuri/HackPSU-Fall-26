@@ -12,6 +12,7 @@ import { useRecalibrateKey } from '../hooks';
 import { useArm, useHub } from '../hubContext';
 import { Cancelled, LESSONS, Lesson as LessonT, collectMoves, lessonById, simDo, timeToGuard, useSensei, useSimPuppet, wait, waitForMove } from '../lessons';
 import { getStage } from '../scene/stage';
+import { useLink } from '../components/SensorGuard';
 import { sfx } from '../sfx';
 import { voice } from '../voice';
 
@@ -54,6 +55,16 @@ function Runner({ lesson }: { lesson: LessonT }) {
   const info = MOVE_INFO[m];
 
   useEffect(() => () => { abort.current?.abort(); voice.stop(); }, []);
+
+  // a sensor dropped mid-lesson: stop cleanly, start again once it is back
+  const linkOk = useLink((s) => s.ok);
+  useEffect(() => {
+    if (linkOk || phase === 'intro' || phase === 'done') return;
+    abort.current?.abort();
+    sensei.stop();
+    voice.stop();
+    setPhase('intro');
+  }, [linkOk]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pop = (a: Attempt) => {
     const stage = getStage();

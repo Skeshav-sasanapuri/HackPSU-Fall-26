@@ -110,7 +110,7 @@ export function Setup() {
       </div>
 
       <div className="trio-foot">
-        <button className="btn taped" onClick={() => { p.set({ done: true }); nav('/connect'); }}>Connect sensors</button>
+        <button className="btn taped" onClick={() => { p.set({ done: true }); nav('/customize'); }}>Next: your boxer</button>
       </div>
     </main>
   );

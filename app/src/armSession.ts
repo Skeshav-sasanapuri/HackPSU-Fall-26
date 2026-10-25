@@ -35,6 +35,9 @@ export class ArmSession {
   readonly detector: MoveDetector;
   pose: ArmPose | null = null;
   lastMove: Detection | null = null;
+  /** straight punches keep reading bent: the sensor headings have probably drifted apart */
+  driftSuspect = false;
+  private jabExt: number[] = [];
   private moveCbs = new Set<(d: Detection) => void>();
   lastPunch: Punch | null = null;
   punches = 0;
@@ -59,7 +62,7 @@ export class ArmSession {
     this.engine.lengths = lengths; this.meter.bodyKg = bodyKg;
     this.detector.lengths = lengths; this.detector.bodyKg = bodyKg; this.detector.lead = lead;
   }
-  setCalibration(cal: Calibration | null) { this.engine.setCalibration(cal); this.meter.reset(); }
+  setCalibration(cal: Calibration | null) { this.engine.setCalibration(cal); this.meter.reset(); this.jabExt = []; this.driftSuspect = false; }
 
   /** Re-apply a stored hold with another phone orientation (no need to hold the pose again). */
   static reapply(cal: Calibration, phoneAxis: Clock): Calibration | null {
@@ -93,6 +96,12 @@ export class ArmSession {
       }
       for (const d of this.detector.update(now, this.pose)) {
         this.lastMove = d;
+        if (d.move === 'jab' || d.move === 'body jab' || d.move === 'double jab') {
+          this.jabExt.push(d.extensionDeg);
+          if (this.jabExt.length > 6) this.jabExt.shift();
+          const sorted = [...this.jabExt].sort((a, b) => a - b);
+          this.driftSuspect = sorted.length >= 4 && sorted[sorted.length >> 1] > 28;
+        }
         for (const cb of this.moveCbs) cb(d);
       }
     }

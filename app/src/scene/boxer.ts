@@ -1,10 +1,11 @@
 import * as THREE from 'three';
 import { ArmDriver } from './armDriver';
+import { Fighter, Side } from './fighter';
 import { noOutline, toon } from './toon';
 
 /* Placeholder boxer until the real GLB arrives: a bone hierarchy with toon-shaded parts hung on the bones, so the arm
  * driving code is the same one the Mixamo rig will use. Faces +z. Left side is +x. Height about 1.8 m. */
-export type Side = 'L' | 'R';
+export type { Side } from './fighter';
 export interface BoxerColors { skin: string; shorts: string; gloves: string; trim: string; hair: string }
 export const DEFAULT_COLORS: BoxerColors = { skin: '#c68a5e', shorts: '#a3271c', gloves: '#b3261c', trim: '#efe6d2', hair: '#1b130e' };
 /** The old coach: grey hair and beard, tank top, wrapped hands instead of gloves. */
@@ -22,7 +23,7 @@ export function guardDirs(s: number) {
   };
 }
 
-export class Boxer {
+export class Boxer implements Fighter {
   readonly root = new THREE.Group();
   readonly hips = new THREE.Bone();
   readonly chest = new THREE.Bone();
@@ -34,7 +35,7 @@ export class Boxer {
   lead: Side = 'L';
   private mats: Record<keyof BoxerColors, THREE.MeshToonMaterial>;
 
-  constructor(colors: BoxerColors = DEFAULT_COLORS, readonly style: 'fighter' | 'coach' = 'fighter') {
+  constructor(colors: BoxerColors = DEFAULT_COLORS, readonly style: 'fighter' | 'coach' | 'female' = 'fighter') {
     this.mats = {
       skin: toon(colors.skin), shorts: toon(colors.shorts), gloves: toon(colors.gloves), trim: toon(colors.trim), hair: toon(colors.hair),
     };
@@ -58,8 +59,14 @@ export class Boxer {
     this.head.position.set(0, 0.1, 0); neck.add(this.head);
 
     // torso
-    add(this.chest, cap(0.16, 0.16), skin, v(0, 0.02, 0), v(1.3, 1, 0.72));
-    for (const s of [-1, 1]) add(this.chest, new THREE.SphereGeometry(0.085, 16, 12), skin, v(0.075 * s, 0.05, 0.085), v(1.1, 0.8, 0.55));
+    const fem = style === 'female';
+    add(this.chest, cap(0.16, 0.16), skin, v(0, 0.02, 0), fem ? v(1.12, 0.95, 0.7) : v(1.3, 1, 0.72));
+    if (!fem) for (const s of [-1, 1]) add(this.chest, new THREE.SphereGeometry(0.085, 16, 12), skin, v(0.075 * s, 0.05, 0.085), v(1.1, 0.8, 0.55));
+    else {
+      add(this.chest, new THREE.CylinderGeometry(0.188, 0.178, 0.17, 20), this.mats.shorts, v(0, 0.035, 0.004), v(1, 1, 0.78));
+      add(this.head, new THREE.SphereGeometry(0.05, 12, 10), this.mats.hair, v(0, 0.11, -0.12), v(0.8, 1, 1.3));
+      add(this.head, new THREE.CapsuleGeometry(0.03, 0.12, 4, 8), this.mats.hair, v(0, 0.02, -0.15), undefined, new THREE.Euler(0.35, 0, 0));
+    }
     add(spine, cap(0.135, 0.14), skin, v(0, 0.06, 0), v(1.12, 1, 0.75));
     for (let row = 0; row < 3; row++) for (const s of [-1, 1]) {
       add(spine, new THREE.SphereGeometry(0.036, 12, 8), skin, v(0.035 * s, 0.13 - row * 0.065, 0.095), v(1, 0.85, 0.42));
@@ -77,7 +84,7 @@ export class Boxer {
     add(this.head, new THREE.BoxGeometry(0.04, 0.007, 0.01), dark, v(0, 0.02, 0.1));
 
     // shorts + legs
-    add(this.hips, new THREE.CylinderGeometry(0.19, 0.22, 0.3, 24), this.mats.shorts, v(0, -0.07, 0), v(1, 1, 0.78));
+    add(this.hips, new THREE.CylinderGeometry(0.19, fem ? 0.235 : 0.22, 0.3, 24), this.mats.shorts, v(0, -0.07, 0), v(1, 1, 0.78));
     add(this.hips, new THREE.CylinderGeometry(0.192, 0.192, 0.07, 24), this.mats.trim, v(0, 0.09, 0), v(1, 1, 0.78));
     for (const s of [-1, 1]) {
       const thigh = new THREE.Bone(); thigh.position.set(0.1 * s, -0.08, 0); this.hips.add(thigh);
@@ -96,7 +103,7 @@ export class Boxer {
     // arms (rest pose: hanging, palms facing the thighs)
     const makeArm = (side: Side) => {
       const s = side === 'L' ? 1 : -1;
-      const upper = new THREE.Bone(); upper.position.set(0.22 * s, 0.09, 0); this.chest.add(upper);
+      const upper = new THREE.Bone(); upper.position.set((fem ? 0.19 : 0.22) * s, 0.09, 0); this.chest.add(upper);
       add(upper, new THREE.SphereGeometry(0.075, 14, 12), skin, v(0, -0.01, 0), v(1, 0.9, 1));       // shoulder/deltoid
       add(upper, cap(0.058, L1 - 0.1), skin, v(0, -L1 / 2, 0), v(1, 1, 1.05));
       add(upper, new THREE.SphereGeometry(0.05, 12, 10), skin, v(0, -L1 * 0.42, 0.025), v(1, 1.3, 0.9));  // bicep
@@ -136,6 +143,8 @@ export class Boxer {
   setColors(c: Partial<BoxerColors>) {
     for (const k of Object.keys(c) as (keyof BoxerColors)[]) if (c[k]) this.mats[k].color.set(c[k]!);
   }
+
+  update(_dt: number, t: number) { this.idle(t); }
 
   /** Breathing / bounce. Call every frame before driving the arms. */
   idle(t: number, energy = 1) {
@@ -195,7 +204,7 @@ export class GhostArm {
     this.group.renderOrder = 10;
   }
   /** place at the boxer's shoulder, pointing straight forward (+z in character space) */
-  attach(boxer: Boxer, side: Side) {
+  attach(boxer: Fighter, side: Side) {
     boxer.shoulderWorld(side, this.group.position);
     boxer.root.getWorldQuaternion(this.group.quaternion);
   }

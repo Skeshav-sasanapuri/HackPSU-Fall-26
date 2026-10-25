@@ -1,10 +1,12 @@
 import { Link, NavLink, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { DebugPanel } from './components/DebugPanel';
+import { SensorGuard } from './components/SensorGuard';
 import { StageLayer } from './components/StageView';
 import { SIM } from './flags';
 import { HubProvider } from './hubContext';
 import { Calibrate } from './pages/Calibrate';
 import { Connect } from './pages/Connect';
+import { Customize } from './pages/Customize';
 import { Home } from './pages/Home';
 import { Bag } from './pages/Bag';
 import { History } from './pages/History';
@@ -20,7 +22,7 @@ import { useSession } from './store';
 function Shell() {
   const code = useSession((s) => s.code);
   const { pathname } = useLocation();
-  const step = pathname.startsWith('/connect') ? 'connect' : pathname.startsWith('/setup') ? 'setup' : pathname.startsWith('/calibrate') ? 'calibrate' : '';
+  const step = pathname.startsWith('/connect') ? 'connect' : pathname.startsWith('/setup') || pathname.startsWith('/customize') ? 'setup' : pathname.startsWith('/calibrate') ? 'calibrate' : '';
   return (
     <HubProvider>
       <div className="shell">
@@ -40,6 +42,7 @@ function Shell() {
         <div className="stagepage">
           <StageLayer />
           <div className="over"><Outlet /></div>
+          <SensorGuard />
         </div>
         <DebugPanel />
       </div>
@@ -54,6 +57,7 @@ export function App() {
       <Route element={<Shell />}>
         <Route path="/" element={<Landing />} />
         <Route path="/setup" element={<Setup />} />
+        <Route path="/customize" element={<Customize />} />
         <Route path="/connect" element={<Connect />} />
         <Route path="/calibrate" element={<Calibrate />} />
         <Route path="/home" element={<Home />} />

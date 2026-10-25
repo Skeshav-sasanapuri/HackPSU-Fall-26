@@ -1,7 +1,9 @@
 import { ReactNode, useEffect, useRef } from 'react';
 import { create } from 'zustand';
 import { useArm } from '../hubContext';
-import { Side } from '../scene/boxer';
+import { TEST_MODEL } from '../flags';
+import { makeFighter } from '../scene/characters';
+import { Side, skinTone } from '../scene/fighter';
 import { Shot, getStage } from '../scene/stage';
 import { useProfile } from '../store';
 
@@ -27,6 +29,19 @@ export function StageLayer() {
   const mirror = useProfile((p) => p.mirror);
   const { shot, ghost, live } = useStageConfigStore();
   const stage = getStage();
+  const body = useProfile((p) => p.body);
+  const tone = useProfile((p) => p.skinTone);
+  const gloves = useProfile((p) => p.gloves);
+  const shorts = useProfile((p) => p.shorts);
+
+  // the character: rebuilt when the body type changes, recoloured live
+  useEffect(() => {
+    let live = true;
+    void makeFighter(body, { skin: skinTone(useProfile.getState().skinTone), gloves: useProfile.getState().gloves, shorts: useProfile.getState().shorts }, TEST_MODEL)
+      .then((f) => { if (live) stage.setFighter(f); });
+    return () => { live = false; };
+  }, [stage, body]);
+  useEffect(() => { stage.boxer.setColors({ skin: skinTone(tone), gloves, shorts }); }, [stage, tone, gloves, shorts, body]);
 
   useEffect(() => {
     stage.mount(host.current!);

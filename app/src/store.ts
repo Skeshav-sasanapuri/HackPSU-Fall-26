@@ -22,6 +22,12 @@ export interface Profile {
   watchDeviceId: string | null;
   /** show the boxer like a mirror (your left arm moves the arm on the left of the screen) */
   mirror: boolean;
+  /** character */
+  body: 'male' | 'female';
+  /** 0 = very light .. 1 = very dark */
+  skinTone: number;
+  gloves: string;
+  shorts: string;
   done: boolean;
 }
 
@@ -33,12 +39,13 @@ interface ProfileStore extends Profile {
 const DEFAULT: Profile = {
   name: '', heightCm: 175, weightKg: 75, lead: 'left', units: 'imperial', upperArmM: null, forearmM: null,
   watchAxis: '3', phoneAxis: '6', watchDeviceId: null, mirror: true, done: false,
+  body: 'male', skinTone: 0.45, gloves: '#b3261c', shorts: '#a3271c',
 };
 
 export const useProfile = create<ProfileStore>()(
   persist(
     (set) => ({ ...DEFAULT, set: (p) => set(p), reset: () => set({ ...DEFAULT }) }),
-    { name: 'jab.profile', version: 2, migrate: (old) => ({ ...DEFAULT, ...(old as object) }) as ProfileStore },
+    { name: 'jab.profile', version: 3, migrate: (old) => ({ ...DEFAULT, ...(old as object) }) as ProfileStore },
   ),
 );
 
