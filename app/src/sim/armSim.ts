@@ -1,4 +1,5 @@
 import { ArmLengths, armFromHeight } from '../core/body';
+import { ArmState, CALIBRATION_KEYS, GUARD_KEY, MOVE_KEYS, MoveId, guardState, moveDuration, sampleKeys, sampleMove } from '../core/moves';
 import { PhonePacket, WatchPacket } from '../core/packets';
 import {
   AXES, Clock, DEG, G0, M3, Q4, V3, add, cross, fromThree, matFromCols, matMul, matT, matVec, mul, nrm, perp, qE,
@@ -9,88 +10,8 @@ import {
  * for each sensor, strap tilt, wobble and noise. Used by ?sim=1, by tools/simDevices.ts and by the unit tests.
  * Ground truth lives in the heading frame (forward = +z, up = +y, the lead arm's side = +x). */
 
-export interface ArmState { U: V3; D: V3; N: V3 }
-export type MoveName = 'hold' | 'guard' | 'jab' | 'double jab' | 'body jab' | 'hook' | 'uppercut' | 'parry';
-
-interface Key { t: number; U: V3; phi: number; ref: V3; tau?: number }
-const REF_FWD: V3 = nrm([0.35, 0.45, 0.82]);
-const REF_ACROSS: V3 = nrm([-0.7, 0.1, 0.7]);
-/** twist that puts the palm down when the arm is straight out in front */
-const TAU0 = Math.PI / 2 - Math.atan2(0.45, 0.35);
-
-const GUARD: Key = { t: 0, U: nrm([0.2, -0.85, 0.45]), phi: 125 * DEG, ref: REF_FWD };
-const at = (t: number, k: Omit<Key, 't'>): Key => ({ ...k, t });
-
-/** Keyframes relative to the move start; every move starts and ends in the guard. */
-const MOVES: Record<Exclude<MoveName, 'hold' | 'guard'>, Key[]> = {
-  jab: [
-    GUARD,
-    at(0.09, { U: nrm([0.05, 0.1, 1]), phi: 6 * DEG, ref: REF_FWD }),
-    at(0.13, { U: nrm([0.05, 0.1, 1]), phi: 6 * DEG, ref: REF_FWD }),
-    at(0.36, GUARD),
-  ],
-  'double jab': [
-    GUARD,
-    at(0.09, { U: nrm([0.05, 0.1, 1]), phi: 6 * DEG, ref: REF_FWD }),
-    at(0.24, { U: nrm([0.15, -0.5, 0.8]), phi: 60 * DEG, ref: REF_FWD }),
-    at(0.33, { U: nrm([0.05, 0.1, 1]), phi: 6 * DEG, ref: REF_FWD }),
-    at(0.38, { U: nrm([0.05, 0.1, 1]), phi: 6 * DEG, ref: REF_FWD }),
-    at(0.62, GUARD),
-  ],
-  'body jab': [
-    GUARD,
-    at(0.1, { U: nrm([0.05, -0.4, 0.92]), phi: 8 * DEG, ref: REF_FWD }),
-    at(0.14, { U: nrm([0.05, -0.4, 0.92]), phi: 8 * DEG, ref: REF_FWD }),
-    at(0.4, GUARD),
-  ],
-  hook: [
-    GUARD,
-    at(0.15, { U: nrm([0.95, 0.1, 0.15]), phi: 90 * DEG, ref: REF_ACROSS }),
-    at(0.25, { U: nrm([0.5, 0.1, 0.85]), phi: 90 * DEG, ref: REF_ACROSS }),
-    at(0.55, GUARD),
-  ],
-  uppercut: [
-    GUARD,
-    at(0.14, { U: nrm([0.1, -0.95, 0.2]), phi: 100 * DEG, ref: REF_FWD }),
-    at(0.25, { U: nrm([0.1, -0.45, 0.88]), phi: 55 * DEG, ref: REF_FWD }),
-    at(0.55, GUARD),
-  ],
-  parry: [
-    GUARD,
-    at(0.1, { U: nrm([0.45, -0.75, 0.5]), phi: 118 * DEG, ref: REF_FWD }),
-    at(0.28, GUARD),
-  ],
-};
-
-const smooth = (x: number) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
-
-function stateFrom(U: V3, phi: number, ref: V3, tau: number): ArmState {
-  U = nrm(U);
-  const h = nrm(cross(U, ref));
-  const D = nrm(rotAxis(U, h, phi));
-  const N = rotAxis(nrm(cross(h, D)), D, tau + TAU0);
-  return { U, D, N };
-}
-
-function sampleKeys(keys: Key[], t: number): { U: V3; phi: number; ref: V3; tau: number } {
-  if (t <= keys[0].t) return { U: keys[0].U, phi: keys[0].phi, ref: keys[0].ref, tau: keys[0].tau ?? 0 };
-  for (let i = 1; i < keys.length; i++) {
-    if (t <= keys[i].t) {
-      const a = keys[i - 1], b = keys[i], f = smooth((t - a.t) / (b.t - a.t));
-      return {
-        U: nrm(add(mul(a.U, 1 - f), mul(b.U, f))),
-        phi: a.phi + (b.phi - a.phi) * f,
-        ref: nrm(add(mul(a.ref, 1 - f), mul(b.ref, f))),
-        tau: (a.tau ?? 0) + ((b.tau ?? 0) - (a.tau ?? 0)) * f,
-      };
-    }
-  }
-  const k = keys[keys.length - 1];
-  return { U: k.U, phi: k.phi, ref: k.ref, tau: k.tau ?? 0 };
-}
-
-/** Straight out in front, palm flat: the calibration pose. */
-const HOLD: Key[] = [at(0, { U: [0, 0, 1], phi: 0, ref: REF_FWD })];
+export type { ArmState } from '../core/moves';
+export type MoveName = 'hold' | 'guard' | MoveId;
 
 export interface SimOptions {
   watchAxis?: Clock;
@@ -105,6 +26,8 @@ export interface SimOptions {
   seed?: number;
   /** seconds the arm holds the calibration pose before the script starts */
   holdSec?: number;
+  /** the moves the scripted arm cycles through */
+  order?: MoveId[];
   lengths?: ArmLengths;
 }
 
@@ -128,6 +51,7 @@ export class ArmSim {
       noise: o.noise ?? 1,
       seed: o.seed ?? 7,
       holdSec: o.holdSec ?? 4,
+      order: o.order ?? ['jab', 'jab', 'double jab', 'hook', 'uppercut', 'body jab', 'parry', 'jab', 'hook', 'double jab'],
       lengths: o.lengths ?? armFromHeight(1.75),
     };
     let s = this.opt.seed >>> 0;
@@ -146,11 +70,11 @@ export class ArmSim {
   private buildScript() {
     let t = this.opt.holdSec;
     const push = (name: MoveName, dur: number) => { this.script.push({ name, t0: t, t1: t + dur }); t += dur; };
-    const order: MoveName[] = ['jab', 'jab', 'double jab', 'hook', 'uppercut', 'body jab', 'parry', 'jab', 'hook', 'double jab'];
+    const order: MoveId[] = this.opt.order;
     for (let rep = 0; rep < 6; rep++) {
       for (const m of order) {
         push('guard', 0.7 + this.rng() * 0.8);
-        push(m, MOVES[m as keyof typeof MOVES].at(-1)!.t);
+        push(m, moveDuration(m));
       }
     }
     push('guard', 1);
@@ -163,18 +87,20 @@ export class ArmSim {
     return 'guard';
   }
 
+  /** When set, replaces the script (used by the "puppet" demo mode). */
+  override: ((t: number) => ArmState) | null = null;
+
   /** Ground-truth arm in the heading frame. */
   truth(t: number): ArmState {
+    if (this.override && t >= this.opt.holdSec) return this.override(t);
     if (t < this.opt.holdSec) {
       // ease into the calibration pose over the first second, then hold perfectly still
-      const k = sampleKeys([at(0, { U: GUARD.U, phi: GUARD.phi, ref: REF_FWD }), at(1, { U: [0, 0, 1], phi: 0, ref: REF_FWD })], t);
-      return stateFrom(k.U, k.phi, k.ref, k.tau);
+      return sampleKeys([GUARD_KEY, { ...CALIBRATION_KEYS[0], t: 1 }], t);
     }
     const m = this.moveAt(t);
-    if (m === 'guard') return stateFrom(GUARD.U, GUARD.phi, GUARD.ref, 0);
+    if (m === 'guard' || m === 'hold') return guardState();
     const item = this.script.find((s) => t >= s.t0 && t < s.t1)!;
-    const k = sampleKeys(MOVES[m as keyof typeof MOVES], t - item.t0);
-    return stateFrom(k.U, k.phi, k.ref, k.tau);
+    return sampleMove(m, t - item.t0);
   }
 
   /* ---- watch ---- */

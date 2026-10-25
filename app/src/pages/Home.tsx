@@ -7,9 +7,9 @@ import { useProfile } from '../store';
 
 const MODES = [
   { id: 'mirror', title: 'Free mirror', sub: 'Shadowbox. See your speed and power.', to: '/mirror', ready: true },
-  { id: 'train', title: 'Train', sub: 'Lessons with the coach, move by move.', to: '/train', ready: false },
-  { id: 'bag', title: 'Heavy bag', sub: 'Rounds, combos and a bag that hits back.', to: '/bag', ready: false },
-  { id: 'history', title: 'History', sub: 'Every session, every punch.', to: '/history', ready: false },
+  { id: 'train', title: 'Train', sub: 'Lessons with the coach, move by move.', to: '/train', ready: true },
+  { id: 'bag', title: 'Heavy bag', sub: 'Rounds, combos and a bag that hits back.', to: '/bag', ready: true },
+  { id: 'history', title: 'History', sub: 'Every session, every punch.', to: '/history', ready: true },
 ];
 
 export function Home() {
@@ -36,7 +36,7 @@ export function Home() {
 
       <div className="tiles">
         {MODES.map((m) => (
-          <button key={m.id} className="tile paper" disabled={!m.ready} onClick={() => nav(cal || !m.ready ? m.to : `/calibrate?next=${m.to}`)}>
+          <button key={m.id} className="tile paper" disabled={!m.ready} onClick={() => nav(cal || m.id === 'history' ? m.to : `/calibrate?next=${m.to}`)}>
             {!m.ready && <span className="soon">Soon</span>}
             <span className="inked">{m.title}</span>
             <p>{m.sub}</p>

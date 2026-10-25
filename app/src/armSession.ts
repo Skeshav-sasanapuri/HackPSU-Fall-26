@@ -4,6 +4,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { ArmLengths } from './core/body';
 import { Calibration, calibrate } from './core/calibration';
 import { ArmEngine, ArmPose } from './core/engine';
+import { Detection, MoveDetector } from './core/detector';
 import { HoldRecorder } from './core/hold';
 import { Punch, PunchMeter } from './core/punch';
 import { Clock } from './core/vec';
@@ -31,7 +32,10 @@ export interface CharArm { side: Side; U: THREE.Vector3; D: THREE.Vector3; N: TH
 export class ArmSession {
   readonly engine: ArmEngine;
   readonly meter: PunchMeter;
+  readonly detector: MoveDetector;
   pose: ArmPose | null = null;
+  lastMove: Detection | null = null;
+  private moveCbs = new Set<(d: Detection) => void>();
   lastPunch: Punch | null = null;
   punches = 0;
   bestSpeed = 0;
@@ -42,6 +46,7 @@ export class ArmSession {
   constructor(private hub: DeviceHub, lengths: ArmLengths, bodyKg: number) {
     this.engine = new ArmEngine(lengths);
     this.meter = new PunchMeter(bodyKg);
+    this.detector = new MoveDetector(lengths, bodyKg);
   }
 
   attach(): () => void {
@@ -50,7 +55,10 @@ export class ArmSession {
     return () => { a(); b(); };
   }
 
-  setBody(lengths: ArmLengths, bodyKg: number) { this.engine.lengths = lengths; this.meter.bodyKg = bodyKg; }
+  setBody(lengths: ArmLengths, bodyKg: number, lead: 'left' | 'right' = 'left') {
+    this.engine.lengths = lengths; this.meter.bodyKg = bodyKg;
+    this.detector.lengths = lengths; this.detector.bodyKg = bodyKg; this.detector.lead = lead;
+  }
   setCalibration(cal: Calibration | null) { this.engine.setCalibration(cal); this.meter.reset(); }
 
   /** Re-apply a stored hold with another phone orientation (no need to hold the pose again). */
@@ -68,6 +76,10 @@ export class ArmSession {
   cancelHold() { this.recorder = null; }
 
   onPunch(cb: (p: Punch) => void) { this.punchCbs.add(cb); return () => { this.punchCbs.delete(cb); }; }
+  /** every recognised move (strikes, covers, parries, feints) */
+  onMove(cb: (d: Detection) => void) { this.moveCbs.add(cb); return () => { this.moveCbs.delete(cb); }; }
+  /** the tracked hand is back in the guard */
+  get inGuard() { return this.detector.inGuard; }
   resetStats() { this.punches = 0; this.bestSpeed = 0; this.lastPunch = null; }
 
   /** Once per rendered frame. */
@@ -78,6 +90,10 @@ export class ArmSession {
       if (p) {
         this.lastPunch = p; this.punches++; this.bestSpeed = Math.max(this.bestSpeed, p.peakSpeed);
         for (const cb of this.punchCbs) cb(p);
+      }
+      for (const d of this.detector.update(now, this.pose)) {
+        this.lastMove = d;
+        for (const cb of this.moveCbs) cb(d);
       }
     }
     return this.pose;

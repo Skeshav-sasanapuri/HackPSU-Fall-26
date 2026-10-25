@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useCalibration } from '../armSession';
 import { Burst, HudChips, useTicker } from '../components/Hud';
 import { StageView } from '../components/StageView';
+import { MOVE_INFO } from '../core/moves';
+import { SessionTally, useHistory } from '../history';
 import { useRecalibrateKey } from '../hooks';
 import { useArm } from '../hubContext';
 import { Shot, getStage } from '../scene/stage';
@@ -23,19 +25,33 @@ export function Mirror() {
   useRecalibrateKey();
   useTicker(100);
 
+  const addSession = useHistory((h) => h.add);
+  const tally = useRef(new SessionTally());
+  const [lastMove, setLastMove] = useState('');
   useEffect(() => { arm.resetStats(); }, [arm]);
+  // keep the shadowboxing session in the history when leaving, if anything happened
+  useEffect(() => () => {
+    if (tally.current.total > 0) addSession(tally.current.finish('mirror', 'Free mirror'));
+  }, [addSession]);
 
   useEffect(() => arm.onPunch((p) => {
+    const k = p.power / 100;
+    getStage().kick(0.15 + 0.5 * k);
+    sfx.punch(k);
+  }), [arm]);
+
+  // name every recognised move next to the glove
+  useEffect(() => arm.onMove((d) => {
+    tally.current.add(d);
     const stage = getStage();
     const side = stage.boxer.lead;
     const s = stage.toScreen(stage.boxer.gloveWorld(side));
-    const k = p.power / 100;
-    stage.kick(0.15 + 0.5 * k);
-    sfx.punch(k);
+    const strike = d.peakSpeed > 0 && MOVE_INFO[d.move].kind === 'strike';
+    setLastMove(MOVE_INFO[d.move].name);
     const pop: Pop = {
       id: ++popId, x: s.x + (side === 'L' ? 90 : -90), y: s.y - 60,
-      big: `${p.peakSpeed.toFixed(1)} m/s`, small: `${Math.round(p.forceN).toLocaleString()} N est.`,
-      color: k > 0.7 ? '#c3261c' : '#d4a017',
+      big: MOVE_INFO[d.move].name, small: strike ? `${d.peakSpeed.toFixed(1)} m/s · ${Math.round(d.forceN).toLocaleString()} N est.` : '',
+      color: d.power > 70 ? '#c3261c' : '#d4a017',
     };
     setPops((ps) => [...ps.slice(-3), pop]);
     setTimeout(() => setPops((ps) => ps.filter((q) => q.id !== pop.id)), 1300);
@@ -66,6 +82,7 @@ export function Mirror() {
           <div className="powerbar"><i style={{ width: `${last?.power ?? 0}%` }} /></div>
         </div>
         <div className="row2"><span className="label">Best</span><b>{arm.bestSpeed ? `${arm.bestSpeed.toFixed(1)} m/s` : '–'}</b></div>
+        <div className="row2"><span className="label">Move</span><b className="inked red" style={{ fontSize: 24 }}>{lastMove || '–'}</b></div>
       </div>
       <HudChips />
 

@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useHubStatus } from '../hubContext';
 
-export function HudChips() {
+export function HudChips({ className = '' }: { className?: string }) {
   const s = useHubStatus(500);
   return (
-    <div className="hudchips">
+    <div className={`hudchips ${className}`}>
       <span className={`hchip ${s.watch.up ? 'on' : ''}`}><i />Watch {s.watch.up ? `· ${s.watch.hz} Hz` : '· offline'}</span>
       <span className={`hchip ${s.phone.up ? 'on' : ''}`}><i />Phone {s.phone.up ? `· ${s.phone.hz} Hz` : '· offline'}</span>
     </div>

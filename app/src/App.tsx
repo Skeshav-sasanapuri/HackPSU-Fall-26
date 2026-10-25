@@ -6,7 +6,12 @@ import { HubProvider } from './hubContext';
 import { Calibrate } from './pages/Calibrate';
 import { Connect } from './pages/Connect';
 import { Home } from './pages/Home';
+import { Bag } from './pages/Bag';
+import { History } from './pages/History';
 import { Landing } from './pages/Landing';
+import { Summary } from './pages/Summary';
+import { Lesson } from './pages/Lesson';
+import { Train } from './pages/Train';
 import { Mirror } from './pages/Mirror';
 import { PhonePage } from './pages/PhonePage';
 import { Setup } from './pages/Setup';
@@ -25,7 +30,7 @@ function Shell() {
             <NavLink to="/setup" className={step === 'setup' ? 'on' : ''} style={{ textDecoration: 'none' }}><span className={step === 'setup' ? 'on' : ''}>1 You</span></NavLink>
             <NavLink to="/connect" style={{ textDecoration: 'none' }}><span className={step === 'connect' ? 'on' : ''}>2 Connect</span></NavLink>
             <NavLink to="/calibrate" style={{ textDecoration: 'none' }}><span className={step === 'calibrate' ? 'on' : ''}>3 Calibrate</span></NavLink>
-            <NavLink to="/home" style={{ textDecoration: 'none' }}><span className={pathname === '/home' || pathname === '/mirror' ? 'on' : ''}>4 Box</span></NavLink>
+            <NavLink to="/home" style={{ textDecoration: 'none' }}><span className={['/home', '/mirror', '/train', '/bag', '/history', '/summary'].some((r) => pathname.startsWith(r)) ? 'on' : ''}>4 Box</span></NavLink>
           </nav>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             {SIM && <span className="simflag">Simulated</span>}
@@ -53,6 +58,11 @@ export function App() {
         <Route path="/calibrate" element={<Calibrate />} />
         <Route path="/home" element={<Home />} />
         <Route path="/mirror" element={<Mirror />} />
+        <Route path="/train" element={<Train />} />
+        <Route path="/train/:id" element={<Lesson />} />
+        <Route path="/bag" element={<Bag />} />
+        <Route path="/history" element={<History />} />
+        <Route path="/summary/:id" element={<Summary />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

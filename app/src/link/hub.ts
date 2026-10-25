@@ -1,3 +1,4 @@
+import { MoveId, guardState, moveDuration, sampleMove } from '../core/moves';
 import { PhoneSample, WatchPacket, PhonePacket, WatchSample, decodePhone, decodeWatch, isPhonePacket, isWatchPacket } from '../core/packets';
 import { Clock } from '../core/vec';
 import { ArmSim, SimOptions } from '../sim/armSim';
@@ -205,6 +206,29 @@ export class SimHub extends DeviceHub {
   /** The simulated arm holds the calibration pose for the next `ms`, then carries on with its script. */
   holdFor(ms: number) { this.holdUntil = performance.now() + ms; }
 
+  /* Puppet mode: instead of its script the arm stays in guard and performs what it is told, like an obedient
+   * student. Lets the lessons and the bag rounds be demonstrated without hardware. */
+  private queue: { m: MoveId; at: number }[] = [];
+  private lastNow = 0;
+  private lastT = 0;
+  set puppet(on: boolean) {
+    this.queue = [];
+    this.arm.override = on ? (t) => {
+      const wall = this.lastNow + (t - this.lastT) * 1000;
+      for (const q of this.queue) {
+        const lt = (wall - q.at) / 1000;
+        if (lt >= 0 && lt <= moveDuration(q.m)) return sampleMove(q.m, lt);
+      }
+      return guardState();
+    } : null;
+  }
+  /** Perform moves one after another, starting in `delayMs`. */
+  perform(moves: MoveId[], delayMs = 350) {
+    let at = performance.now() + delayMs;
+    for (const m of moves) { this.queue.push({ m, at }); at += moveDuration(m) * 1000 + 180; }
+    this.queue = this.queue.filter((q) => q.at > performance.now() - 5000);
+  }
+
   start() {
     super.start();
     this.last = performance.now();
@@ -221,6 +245,7 @@ export class SimHub extends DeviceHub {
       this.last = now;
       // inside the sim's opening hold (1..holdSec s) the arm is perfectly still in the calibration pose
       const t = holding ? this.arm.opt.holdSec - 1 : this.scriptT;
+      this.lastNow = now; this.lastT = t;
       for (let i = 1; i >= 0; i--) this.ingestWatch(this.arm.watchPacket(t - i * 0.01, now - i * 10), now);
       this.ingestPhone(this.arm.phonePacket(t, now), now);
     }, 20);

@@ -5,8 +5,10 @@ import { noOutline, toon } from './toon';
 /* Placeholder boxer until the real GLB arrives: a bone hierarchy with toon-shaded parts hung on the bones, so the arm
  * driving code is the same one the Mixamo rig will use. Faces +z. Left side is +x. Height about 1.8 m. */
 export type Side = 'L' | 'R';
-export interface BoxerColors { skin: string; shorts: string; gloves: string; trim: string }
-export const DEFAULT_COLORS: BoxerColors = { skin: '#c68a5e', shorts: '#a3271c', gloves: '#b3261c', trim: '#efe6d2' };
+export interface BoxerColors { skin: string; shorts: string; gloves: string; trim: string; hair: string }
+export const DEFAULT_COLORS: BoxerColors = { skin: '#c68a5e', shorts: '#a3271c', gloves: '#b3261c', trim: '#efe6d2', hair: '#1b130e' };
+/** The old coach: grey hair and beard, tank top, wrapped hands instead of gloves. */
+export const COACH_COLORS: BoxerColors = { skin: '#8a5a3c', shorts: '#3a3833', gloves: '#ece4d2', trim: '#c9a227', hair: '#cfcac0' };
 
 const L1 = 0.3, L2 = 0.27;
 const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
@@ -32,11 +34,11 @@ export class Boxer {
   lead: Side = 'L';
   private mats: Record<keyof BoxerColors, THREE.MeshToonMaterial>;
 
-  constructor(colors: BoxerColors = DEFAULT_COLORS) {
+  constructor(colors: BoxerColors = DEFAULT_COLORS, readonly style: 'fighter' | 'coach' = 'fighter') {
     this.mats = {
-      skin: toon(colors.skin), shorts: toon(colors.shorts), gloves: toon(colors.gloves), trim: toon(colors.trim),
+      skin: toon(colors.skin), shorts: toon(colors.shorts), gloves: toon(colors.gloves), trim: toon(colors.trim), hair: toon(colors.hair),
     };
-    const dark = toon('#1f1813'), hair = toon('#1b130e'), sock = toon('#e9e2d2');
+    const dark = toon('#1f1813'), hair = this.mats.hair, sock = toon('#e9e2d2');
     const skin = this.mats.skin;
     const add = (parent: THREE.Object3D, geo: THREE.BufferGeometry, mat: THREE.Material, p: THREE.Vector3, s?: THREE.Vector3, r?: THREE.Euler) => {
       const m = new THREE.Mesh(geo, mat);
@@ -109,6 +111,14 @@ export class Boxer {
       return { upper, fore, hand, drv };
     };
     this.arms = { L: makeArm('L'), R: makeArm('R') };
+    if (style === 'coach') {
+      // tank top over the torso, a beard, wraps instead of gloves
+      const top = toon('#7d2318');
+      add(spine, new THREE.CylinderGeometry(0.205, 0.185, 0.5, 20), top, v(0, 0.2, 0), v(1, 1, 0.78));
+      add(this.head, new THREE.SphereGeometry(0.085, 18, 12, 0, Math.PI * 2, Math.PI * 0.45, Math.PI * 0.55), hair, v(0, 0.06, 0.03), v(1.05, 1.1, 1.05));
+      add(this.head, new THREE.BoxGeometry(0.05, 0.012, 0.012), hair, v(0, 0.035, 0.103));
+      for (const sd of ['L', 'R'] as Side[]) for (const c of [...this.arms[sd].hand.children]) c.scale.multiplyScalar(0.72);
+    }
     this.root.traverse((o) => { if ((o as THREE.Mesh).isMesh) o.receiveShadow = true; });
     this.setLead('L');
   }

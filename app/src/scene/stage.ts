@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { OutlineEffect } from 'three/examples/jsm/effects/OutlineEffect.js';
-import { Boxer, GhostArm } from './boxer';
+import { Boxer, COACH_COLORS, GhostArm } from './boxer';
 import { Gym, buildGym } from './gym';
 
 /* The 3D stage shared by the calibrate / home / mirror screens: one renderer, one gym, one boxer.
  * Screens register per-frame callbacks and pick a camera shot. */
-export type Shot = 'hero' | 'threeQuarter' | 'side' | 'front';
+export type Shot = 'hero' | 'threeQuarter' | 'side' | 'front' | 'lesson' | 'bagL' | 'bagR';
 type FrameFn = (dt: number, t: number) => void;
 
 const SHOTS: Record<Shot, { pos: [number, number, number]; look: [number, number, number]; fov: number }> = {
@@ -13,6 +13,9 @@ const SHOTS: Record<Shot, { pos: [number, number, number]; look: [number, number
   threeQuarter: { pos: [1.9, 1.55, 3.0], look: [0.05, 1.2, 0.2], fov: 40 },
   side: { pos: [3.4, 1.45, 0.6], look: [0, 1.25, 0.3], fov: 38 },
   front: { pos: [0, 1.5, 3.2], look: [0, 1.25, 0.2], fov: 42 },
+  lesson: { pos: [-0.35, 1.55, 4.3], look: [-0.75, 1.15, -0.3], fov: 42 },
+  bagL: { pos: [3.5, 1.55, 0.55], look: [0.05, 1.2, 0.5], fov: 38 },
+  bagR: { pos: [-3.5, 1.55, 0.55], look: [-0.05, 1.2, 0.5], fov: 38 },
 };
 
 export class Stage {
@@ -22,6 +25,9 @@ export class Stage {
   readonly boxer = new Boxer();
   readonly ghost = new GhostArm();
   readonly gym: Gym;
+  /** the old coach, only shown in lessons */
+  readonly sensei = new Boxer(COACH_COLORS, 'coach');
+  private freezeUntil = 0;
   private effect: OutlineEffect;
   private frames = new Set<FrameFn>();
   private raf = 0;
@@ -47,7 +53,10 @@ export class Stage {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.effect = new OutlineEffect(this.renderer, { defaultThickness: 0.004, defaultColor: [0.09, 0.06, 0.04], defaultAlpha: 1 });
     this.gym = buildGym(this.scene);
-    this.scene.add(this.boxer.root, this.ghost.group);
+    this.scene.add(this.boxer.root, this.ghost.group, this.sensei.root);
+    this.sensei.root.position.set(-1.55, 0, -0.9);
+    this.sensei.root.rotation.y = 0.45;
+    this.sensei.root.visible = false;
     this.setShot('threeQuarter', true);
   }
 
@@ -91,6 +100,9 @@ export class Stage {
     if (instant) { this.camera.position.copy(this.camTo); this.look.copy(this.lookTo); }
   }
 
+  /** hit-stop: frame callbacks get dt = 0 for a moment */
+  freeze(ms: number) { this.freezeUntil = performance.now() + ms; }
+
   /** small camera kick, 0..1 */
   kick(amount: number) { this.shake = Math.min(1, this.shake + amount); }
 
@@ -127,7 +139,8 @@ export class Stage {
     this.camera.lookAt(this.look);
 
     this.boxer.idle(t);
-    for (const f of this.frames) f(dt, t);
+    const sdt = performance.now() < this.freezeUntil ? 0 : dt;
+    for (const f of this.frames) f(sdt, t);
     this.gym.update(dt, t);
     this.effect.render(this.scene, this.camera);
   }
