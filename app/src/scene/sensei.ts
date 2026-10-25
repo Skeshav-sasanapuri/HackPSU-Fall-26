@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { Key, MOVE_KEYS, MoveId, comboDuration, comboKeys, guardState, moveDuration, sampleKeys } from '../core/moves';
-import { Boxer, Side } from './boxer';
+import { Key, MOVE_KEYS, MoveId, comboDuration, comboKeys, moveDuration, sampleKeys } from '../core/moves';
+import { Boxer, Side, guardDirs } from './boxer';
 import { Fighter } from './fighter';
 
 /* Plays textbook moves on the coach. Keyframes are in the heading frame with the lead arm on +x; `side` is the
@@ -17,6 +17,10 @@ export class SenseiPlayer {
   private speed = 1;
   private done: (() => void) | null = null;
   private v = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+  /** what the lead arm showed last frame, and seconds since it switched between rest and a move (for blending) */
+  private shown = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+  private sinceSwitch = 1;
+  private wasPlaying = false;
 
   constructor(private fighter: () => Fighter) {}
 
@@ -52,18 +56,28 @@ export class SenseiPlayer {
     const b = this.fighter();
     if (b instanceof Boxer) b.idle(time + 2.3, 0.7); else b.update(dt, time);
     if ((b as Fighter).gesturing && !this.keys) return;
-    let s = guardState();
-    if (this.keys) {
-      this.t += dt * this.speed;
-      s = sampleKeys(this.keys, this.t);
-      if (this.t >= this.dur) { this.keys = null; const d = this.done; this.done = null; d?.(); }
-    }
     const fx = side === 'L' ? 1 : -1;
     const [U, D, N] = this.v;
-    U.set(s.U[0] * fx, s.U[1], s.U[2]);
-    D.set(s.D[0] * fx, s.D[1], s.D[2]);
-    N.set(s.N[0] * fx, s.N[1], s.N[2]);
-    b.driveArm(side, U, D, N);
+    const playing = this.keys != null;
+    if (this.keys) {
+      this.t += dt * this.speed;
+      const s = sampleKeys(this.keys, this.t);
+      U.set(s.U[0] * fx, s.U[1], s.U[2]);
+      D.set(s.D[0] * fx, s.D[1], s.D[2]);
+      N.set(s.N[0] * fx, s.N[1], s.N[2]);
+      if (this.t >= this.dur) { this.keys = null; const d = this.done; this.done = null; d?.(); }
+    } else {
+      // at rest the coach holds the same guard as the student's boxer
+      const g = guardDirs(fx);
+      g.D.y += Math.sin(time * 2.1) * 0.03;
+      U.copy(g.U); D.copy(g.D.normalize()); N.copy(g.N);
+    }
+    // the move keyframes start and end in a slightly different guard: blend over 0.15 s instead of snapping
+    if (playing !== this.wasPlaying) { this.sinceSwitch = 0; this.wasPlaying = playing; }
+    this.sinceSwitch += dt;
+    const w = Math.min(1, this.sinceSwitch / 0.15);
+    this.v.forEach((x, i) => { this.shown[i].lerp(x, w).normalize(); });
+    b.driveArm(side, this.shown[0], this.shown[1], this.shown[2]);
     b.guard(side === 'L' ? 'R' : 'L', time);
   }
 }
