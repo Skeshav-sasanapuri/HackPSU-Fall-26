@@ -4,6 +4,8 @@ import { Detection } from './core/detector';
 import { COMBOS, Combo, MOVE_IDS, MOVE_INFO, MoveId } from './core/moves';
 import { DeviceHub, SimHub } from './link/hub';
 import { getStage } from './scene/stage';
+import { COACH_COLORS } from './scene/boxer';
+import { GltfFighter } from './scene/gltfFighter';
 import { SenseiPlayer } from './scene/sensei';
 
 /* Lesson catalogue and the small async helpers lesson scripts are written with. */
@@ -83,11 +85,21 @@ export function useSimPuppet(hub: DeviceHub) {
 }
 
 let player: SenseiPlayer | null = null;
+let coachLoading = false;
+/** swaps in the rigged coach (/models/coach.glb) once; keeps the built-in figure if it is missing */
+function loadCoach() {
+  if (coachLoading) return;
+  coachLoading = true;
+  GltfFighter.load('/models/coach.glb', COACH_COLORS, 1.76)
+    .then((f) => getStage().setSensei(f))
+    .catch((e) => console.warn('coach model not used', e));
+}
 /** Shows the coach while mounted and keeps him animated. */
 export function useSensei(): SenseiPlayer {
   const stage = getStage();
-  const p = useMemo(() => (player ??= new SenseiPlayer(stage.sensei)), [stage]);
+  const p = useMemo(() => (player ??= new SenseiPlayer(() => stage.sensei)), [stage]);
   useEffect(() => {
+    loadCoach();
     stage.sensei.root.visible = true;
     const off = stage.onFrame((dt, t) => p.update(dt, t, stage.boxer.lead));
     return () => { off(); p.stop(); stage.sensei.root.visible = false; };

@@ -18,6 +18,9 @@ export class GltfFighter implements Fighter {
   readonly root = new THREE.Group();
   lead: Side = 'L';
   private mixer: THREE.AnimationMixer | null = null;
+  private idleAction: THREE.AnimationAction | null = null;
+  private clips = new Map<string, THREE.AnimationClip>();
+  private gest: { action: THREE.AnimationAction; done: () => void } | null = null;
   private arms = {} as Record<Side, { upper: THREE.Bone; fore: THREE.Bone; hand: THREE.Bone; drv: ArmDriver; glove: THREE.Object3D }>;
   private hips: THREE.Bone | null = null;
   private skinMats: THREE.MeshToonMaterial[] = [];
@@ -64,7 +67,16 @@ export class GltfFighter implements Fighter {
         const name = (src.name || '').toLowerCase();
         if (/short|pant|trunk|cloth/.test(name)) { const t = toon(colors.shorts); this.shortsMats.push(t); return t; }
         if (/joint/.test(name)) return toon('#2a2622');
-        if (src.map && !/skin|body/.test(name)) return toon('#ffffff', { map: src.map });
+        // tops (sports bra, coach's vest) keep the colour picked in Blender
+        // an alpha card whose texture did not survive export would draw as a solid sheet: hide it
+        if (src.transparent && !src.map) { m.visible = false; return old; }
+        if (/^top|shirt|vest|bra|tank/.test(name)) return toon(src.color ?? '#ffffff');
+        if (src.map && !/skin|body/.test(name)) {
+          // hair, brows and lashes are alpha cards: cut them out instead of drawing the transparent parts
+          const t = toon('#ffffff', { map: src.map, side: THREE.DoubleSide, outline: !src.transparent && !src.alphaTest });
+          if (src.transparent || src.alphaTest) t.alphaTest = 0.35;
+          return t;
+        }
         const t = toon(colors.skin, { map: src.map ?? undefined });
         if (!src.map) this.skinMats.push(t);
         return t;
@@ -107,10 +119,12 @@ export class GltfFighter implements Fighter {
       this.arms[side] = { upper, fore, hand, drv, glove };
     }
 
+    for (const c of clips) this.clips.set(c.name, c);
     const idle = clips.find((c) => /idle|stance|guard|fight/i.test(c.name));
     if (idle) {
       this.mixer = new THREE.AnimationMixer(model);
-      this.mixer.clipAction(idle).play();
+      this.idleAction = this.mixer.clipAction(idle).play();
+      this.mixer.addEventListener('finished', (e) => { if (this.gest && e.action === this.gest.action) this.stopGesture(); });
     }
     this.setLead('L');
   }
@@ -118,6 +132,28 @@ export class GltfFighter implements Fighter {
   setLead(side: Side) {
     this.lead = side;
     this.yaw.setFromAxisAngle(new THREE.Vector3(0, 1, 0), side === 'L' ? -0.2 : 0.2);
+  }
+
+  get gesturing() { return this.gest != null; }
+
+  gesture(name: string): Promise<void> {
+    const clip = this.clips.get(name);
+    if (!clip || !this.mixer || !this.idleAction) return Promise.resolve();
+    this.stopGesture();
+    const action = this.mixer.clipAction(clip).reset().setLoop(THREE.LoopOnce, 1);
+    action.clampWhenFinished = true;
+    action.play();
+    this.idleAction.crossFadeTo(action, 0.3, false);
+    return new Promise((res) => { this.gest = { action, done: res }; });
+  }
+
+  stopGesture() {
+    const g = this.gest;
+    if (!g || !this.idleAction) return;
+    this.gest = null;
+    this.idleAction.reset().play();
+    g.action.crossFadeTo(this.idleAction, 0.35, false);
+    g.done();
   }
 
   private pq = new THREE.Quaternion();
@@ -143,6 +179,7 @@ export class GltfFighter implements Fighter {
   }
 
   guard(side: Side, t = 0) {
+    if (this.idleAction) return;   // the boxing idle clip already holds the guard
     const g = guardDirs(side === 'L' ? 1 : -1);
     g.D.y += Math.sin(t * 2.1 + (side === 'L' ? 0 : 1.5)) * 0.03;
     this.driveArm(side, g.U, g.D.normalize(), g.N);

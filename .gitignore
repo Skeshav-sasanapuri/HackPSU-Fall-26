@@ -31,3 +31,7 @@ watch-app/.idea/
 .wrangler/
 .dev.vars
 .vercel/
+
+# Blender working files (large; FBX exports are kept instead)
+*.blend
+*.blend1

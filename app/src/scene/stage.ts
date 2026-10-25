@@ -27,8 +27,8 @@ export class Stage {
   boxer: Fighter = new Boxer();
   readonly ghost = new GhostArm();
   readonly gym: Gym;
-  /** the old coach, only shown in lessons */
-  readonly sensei = new Boxer(COACH_COLORS, 'coach');
+  /** the coach, only shown in lessons: the built-in figure until the rigged one is swapped in */
+  sensei: Fighter = new Boxer(COACH_COLORS, 'coach');
   private freezeUntil = 0;
   private effect: OutlineEffect;
   private frames = new Set<FrameFn>();
@@ -98,6 +98,17 @@ export class Stage {
     old.dispose?.();
     this.scene.add(f.root);
     this.boxer = f;
+  }
+
+  setSensei(f: Fighter) {
+    const old = this.sensei;
+    f.root.position.copy(old.root.position);
+    f.root.rotation.copy(old.root.rotation);
+    f.root.visible = old.root.visible;
+    this.scene.remove(old.root);
+    old.dispose?.();
+    this.scene.add(f.root);
+    this.sensei = f;
   }
 
   onFrame(fn: FrameFn) { this.frames.add(fn); return () => { this.frames.delete(fn); }; }

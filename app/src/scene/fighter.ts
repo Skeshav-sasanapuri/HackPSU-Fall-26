@@ -16,6 +16,10 @@ export interface Fighter {
   gloveWorld(side: Side, out?: THREE.Vector3): THREE.Vector3;
   shoulderWorld(side: Side, out?: THREE.Vector3): THREE.Vector3;
   setColors(c: Partial<FighterColors>): void;
+  /** rigged models only: play a whole-body clip once (e.g. 'coach_clapping'); resolves when it ends or is stopped */
+  gesture?(name: string): Promise<void>;
+  stopGesture?(): void;
+  readonly gesturing?: boolean;
   dispose?(): void;
 }
 

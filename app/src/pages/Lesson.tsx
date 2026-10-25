@@ -55,6 +55,8 @@ function Runner({ lesson }: { lesson: LessonT }) {
   const info = MOVE_INFO[m];
 
   useEffect(() => () => { abort.current?.abort(); voice.stop(); }, []);
+  // the coach greets the student while the intro card is up (the rigged model may still be loading)
+  useEffect(() => { const t = setTimeout(() => { if (!abort.current) void sensei.gesture('coach_talking'); }, 900); return () => clearTimeout(t); }, [sensei]);
 
   // a sensor dropped mid-lesson: stop cleanly, start again once it is back
   const linkOk = useLink((s) => s.ok);
@@ -168,6 +170,7 @@ function Runner({ lesson }: { lesson: LessonT }) {
       setPhase('done');
       setCaption(n === 3 ? 'Champion work!' : n === 2 ? 'Solid. Again?' : n === 1 ? 'Keep at it' : 'Back to basics');
       voice.say(n >= 2 ? 'Good work, kid.' : 'Again. You can do better.');
+      void sensei.gesture(n >= 2 ? 'coach_clapping' : 'coach_talking');
     } catch (e) {
       if (!(e instanceof Cancelled)) throw e;
     } finally {
