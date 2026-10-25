@@ -42,7 +42,7 @@ export class MoveDetector {
   private below: number | null = null;
   private still: number | null = null;
   private holdFired: MoveId | null = null;
-  private fromHold = false;
+  private fromHold: MoveId | null = null;
   /** the current pose looks like a guard */
   inGuard = false;
   last: SegmentFeatures | null = null;
@@ -79,7 +79,7 @@ export class MoveDetector {
       if (v > START) {
         this.seg = [s]; this.below = null;
         // leaving a cover: that motion is just the return to the guard
-        this.fromHold = this.holdFired != null;
+        this.fromHold = this.holdFired;
         this.holdFired = null;
       }
       return out;
@@ -90,11 +90,13 @@ export class MoveDetector {
     if (!ended) return out;
     const seg = this.seg;
     this.seg = null;
-    if (this.fromHold) { this.fromHold = false; return out; }
     const f = features(seg);
     this.last = f;
     const move = classify(f);
-    if (!move) return out;
+    // leaving a cover is just the return to the guard, except a real punch out of a high guard (a tight guard can look like one)
+    const fromHold = this.fromHold;
+    this.fromHold = null;
+    if (!move || (fromHold && (fromHold !== 'high guard' || f.vPeak < MIN_STRIKE_SPEED))) return out;
     const peak = seg.reduce((a, b) => (b.v > a.v ? b : a));
     const ext = seg.reduce((a, b) => (b.phi < a.phi ? b : a));
     const outS = seg.reduce((a, b) => (b.U[0] > a.U[0] ? b : a));

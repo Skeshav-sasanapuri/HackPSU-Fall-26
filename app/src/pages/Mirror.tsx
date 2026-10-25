@@ -1,18 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useCalibration } from '../armSession';
-import { Burst, HudChips, useTicker } from '../components/Hud';
+import { HudChips, useTicker } from '../components/Hud';
 import { StageView } from '../components/StageView';
-import { MOVE_INFO } from '../core/moves';
 import { SessionTally, useHistory } from '../history';
 import { useRecalibrateKey } from '../hooks';
 import { useArm } from '../hubContext';
 import { Shot, getStage } from '../scene/stage';
 import { sfx } from '../sfx';
 import { useProfile } from '../store';
-
-interface Pop { id: number; x: number; y: number; big: string; small: string; color: string }
-let popId = 0;
 
 export function Mirror() {
   const nav = useNavigate();
@@ -21,40 +17,25 @@ export function Mirror() {
   const mirror = useProfile((p) => p.mirror);
   const setProfile = useProfile((p) => p.set);
   const [shot, setShot] = useState<Shot>('threeQuarter');
-  const [pops, setPops] = useState<Pop[]>([]);
   useRecalibrateKey();
   useTicker(100);
 
   const addSession = useHistory((h) => h.add);
   const tally = useRef(new SessionTally());
-  const [lastMove, setLastMove] = useState('');
   useEffect(() => { arm.resetStats(); }, [arm]);
   // keep the shadowboxing session in the history when leaving, if anything happened
   useEffect(() => () => {
-    if (tally.current.total > 0) addSession(tally.current.finish('mirror', 'Free mirror'));
+    const t = tally.current;
+    if (t.strikes.length > 0) addSession(t.finish('mirror', 'Free mirror', { total: t.strikes.length }));
   }, [addSession]);
 
+  // free mirror shows speed and power only; move names live in Train and Gym
   useEffect(() => arm.onPunch((p) => {
+    tally.current.strikes.push(p.peakSpeed);
+    tally.current.maxForceN = Math.max(tally.current.maxForceN, p.forceN);
     const k = p.power / 100;
     getStage().kick(0.15 + 0.5 * k);
     sfx.punch(k);
-  }), [arm]);
-
-  // name every recognised move next to the glove
-  useEffect(() => arm.onMove((d) => {
-    tally.current.add(d);
-    const stage = getStage();
-    const side = stage.boxer.lead;
-    const s = stage.toScreen(stage.boxer.gloveWorld(side));
-    const strike = d.peakSpeed > 0 && MOVE_INFO[d.move].kind === 'strike';
-    setLastMove(MOVE_INFO[d.move].name);
-    const pop: Pop = {
-      id: ++popId, x: s.x + (side === 'L' ? 90 : -90), y: s.y - 60,
-      big: MOVE_INFO[d.move].name, small: strike ? `${d.peakSpeed.toFixed(1)} m/s · ${Math.round(d.forceN).toLocaleString()} N est.` : '',
-      color: d.power > 70 ? '#c3261c' : '#d4a017',
-    };
-    setPops((ps) => [...ps.slice(-3), pop]);
-    setTimeout(() => setPops((ps) => ps.filter((q) => q.id !== pop.id)), 1300);
   }), [arm]);
 
   if (!cal) return <Navigate to="/calibrate?next=/mirror" replace />;
@@ -82,11 +63,8 @@ export function Mirror() {
           <div className="powerbar"><i style={{ width: `${last?.power ?? 0}%` }} /></div>
         </div>
         <div className="row2"><span className="label">Best</span><b>{arm.bestSpeed ? `${arm.bestSpeed.toFixed(1)} m/s` : '–'}</b></div>
-        <div className="row2"><span className="label">Move</span><b className="inked red" style={{ fontSize: 24 }}>{lastMove || '–'}</b></div>
       </div>
       <HudChips />
-
-      {pops.map((p) => <Burst key={p.id} x={p.x} y={p.y} big={p.big} small={p.small} color={p.color} />)}
 
       <div className="dock">
         <button className="btn small" style={{ background: 'var(--paper)', color: 'var(--ink)' }} onClick={() => nav('/home')}>← Modes</button>

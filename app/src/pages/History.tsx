@@ -25,9 +25,9 @@ export function History() {
       <div className="histlist">
         {sessions.map((r) => (
           <button key={r.id} className="histrow paper plain" onClick={() => nav(`/summary/${r.id}`)}>
-            <span className="hmode inked">{r.mode === 'bag' ? 'Bag' : r.mode === 'train' ? 'Train' : 'Mirror'}</span>
+            <span className="hmode inked">{r.mode === 'bag' ? 'Gym' : r.mode === 'train' ? 'Train' : 'Mirror'}</span>
             <span className="htitle">
-              <b>{r.title}</b>
+              <b>{r.title === 'Heavy bag' ? 'Gym' : r.title}</b>
               <small>{fmtDate(r.startedAt)}, {fmtTime(r.startedAt)} · {Math.max(1, Math.round((r.endedAt - r.startedAt) / 60000))} min {r.who && <>· {r.who}{r.body ? ` (${r.body})` : ''}</>}</small>
             </span>
             <span className="hstat"><small>Moves</small><b>{r.total}</b></span>

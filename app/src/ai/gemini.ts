@@ -35,7 +35,7 @@ Sections, in this order:
 ## Progress over time (trends in speed, power, accuracy and lesson scores, with concrete numbers and dates)
 ## Strengths
 ## What to fix (the most common form problems from the tips, each with one drill)
-## Next week's plan (4-6 concrete sessions using the app's modes: Free mirror, Train lessons, Heavy bag)
+## Next week's plan (4-6 concrete sessions using the app's modes: Free mirror, Train lessons, Gym = heavy-bag rounds with called combos)
 If there is little data, say so and keep the report short.`;
 
 function compact(s: SessionRecord) {

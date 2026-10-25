@@ -8,7 +8,7 @@ import { useProfile } from '../store';
 const MODES = [
   { id: 'mirror', title: 'Free mirror', sub: 'Shadowbox. See your speed and power.', to: '/mirror', ready: true },
   { id: 'train', title: 'Train', sub: 'Lessons with the coach, move by move.', to: '/train', ready: true },
-  { id: 'bag', title: 'Heavy bag', sub: 'Rounds, combos and a bag that hits back.', to: '/bag', ready: true },
+  { id: 'bag', title: 'Gym', sub: 'Rounds, combos and a bag that hits back.', to: '/bag', ready: true },
   { id: 'history', title: 'History', sub: 'Every session, every punch.', to: '/history', ready: true },
 ];
 

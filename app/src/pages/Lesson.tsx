@@ -9,7 +9,7 @@ import { MOVE_INFO } from '../core/moves';
 import { Attempt, scoreAttempt, stars } from '../core/score';
 import { SessionTally, useHistory } from '../history';
 import { useArm, useHub } from '../hubContext';
-import { Cancelled, LESSONS, Lesson as LessonT, calibrateHold, collectMoves, lessonById, simDo, timeToGuard, useSensei, useSimPuppet, wait, waitForMove } from '../lessons';
+import { Cancelled, LESSONS, Lesson as LessonT, calibrateHold, collectMoves, deliberate, lessonById, simDo, timeToGuard, useSensei, useSimPuppet, wait, waitForMove } from '../lessons';
 import { getStage } from '../scene/stage';
 import { useLink } from '../components/SensorGuard';
 import { sfx } from '../sfx';
@@ -130,18 +130,21 @@ function Runner({ lesson }: { lesson: LessonT }) {
       setPhase('try');
       for (let r = 0; r < TRIES; r++) {
         setTryN(r + 1);
-        setCaption('Your turn'); setSub(`Try ${r + 1} of ${TRIES}: ${lesson.title.toLowerCase()}`);
+        setCaption('Your turn'); setSub(`Try ${r + 1} of ${TRIES}: ${lesson.title.toLowerCase()}. Take your time.`);
         voice.say(r === 0 ? `Your turn. ${isCombo ? lesson.title : info.cue}` : isCombo ? 'Again.' : info.cue);
         let a: Attempt;
+        // sim only: the puppet repeats the move until it is recognised (a real user simply throws again)
+        const nudge = setInterval(() => simDo(hub, lesson.moves, 0), 4000);
+        sig.addEventListener('abort', () => clearInterval(nudge), { once: true });
         if (!isCombo) {
           simDo(hub, [m], 600);
           const hold = info.kind === 'hold';
-          const d = await waitForMove(arm, m, hold ? 6000 : 5000, sig);
+          const d = await waitForMove(arm, m, 0, sig);
           const ret = d && !hold ? await timeToGuard(arm, 1500) : null;
           a = scoreAttempt(m, d, { returnMs: ret });
         } else {
           simDo(hub, lesson.moves, 600);
-          const ds = await collectMoves(arm, 5000 + 1200 * lesson.moves.length, sig, (got) => got.length >= lesson.moves.length);
+          const ds = await collectMoves(arm, 0, sig, (got) => got.length >= lesson.moves.length, deliberate(lesson.moves));
           const parts = lesson.moves.map((x, i) => scoreAttempt(x, (ds[i] as Detection | undefined) ?? null));
           const all = parts.every((p) => p.correct);
           const bad = parts.find((p) => !p.correct);
@@ -151,6 +154,7 @@ function Runner({ lesson }: { lesson: LessonT }) {
           };
           if (all) tally.combos++;
         }
+        clearInterval(nudge);
         tally.called++; if (a.correct) tally.calledRight++;
         list.push(a); setAttempts([...list]); setLast(a); pop(a);
         await wait(1600, sig);

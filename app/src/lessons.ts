@@ -32,26 +32,34 @@ export function wait(ms: number, signal: AbortSignal) {
 }
 
 /** Detections that arrive within `ms`. Resolves early once `enough` says so. */
-export function collectMoves(arm: ArmSession, ms: number, signal: AbortSignal, enough: (ds: Detection[]) => boolean): Promise<Detection[]> {
+/** Moves until `enough` says stop (or `ms` passes; 0 = wait as long as it takes). Only moves that pass `keep` count. */
+export function collectMoves(arm: ArmSession, ms: number, signal: AbortSignal, enough: (ds: Detection[]) => boolean,
+  keep: (d: Detection) => boolean = () => true): Promise<Detection[]> {
   return new Promise((res, rej) => {
     const got: Detection[] = [];
-    let timer: ReturnType<typeof setTimeout>;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const off = arm.onMove((d) => {
+      if (!keep(d)) return;
       got.push(d);
       if (enough(got)) { finish(); }
     });
     const finish = () => { clearTimeout(timer); off(); res(got); };
-    timer = setTimeout(finish, ms);
+    if (ms > 0) timer = setTimeout(finish, ms);
     signal.addEventListener('abort', () => { clearTimeout(timer); off(); rej(new Cancelled()); }, { once: true });
   });
 }
 
-/** First attempt at `m` in the window; two jabs in quick succession count as a double jab. */
+/* Small natural movements read as feints or parries, and resting in guard can read as a cover. Unless the lesson
+ * is about one of those, they are not a try. */
+const INCIDENTAL: MoveId[] = ['feint', 'parry', 'high guard', 'elbow block'];
+export const deliberate = (expected: MoveId[]) => (d: Detection) => !INCIDENTAL.includes(d.move) || expected.includes(d.move);
+
+/** First deliberate attempt at `m` (ms = 0 waits as long as it takes); two jabs in quick succession count as a double jab. */
 export async function waitForMove(arm: ArmSession, m: MoveId, ms: number, signal: AbortSignal): Promise<Detection | null> {
   const ds = await collectMoves(arm, ms, signal, (ds) => {
     if (m === 'double jab') return ds.some((d) => d.move === 'double jab') || ds.filter((d) => d.move === 'jab').length >= 2 || ds.some((d) => d.move !== 'jab');
     return ds.length > 0;
-  });
+  }, deliberate([m]));
   if (m === 'double jab') {
     const dj = ds.find((d) => d.move === 'double jab');
     if (dj) return dj;

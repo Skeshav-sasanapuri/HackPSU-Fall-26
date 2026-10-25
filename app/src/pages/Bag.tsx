@@ -204,7 +204,7 @@ function BagGame() {
       st.current = 'done';
       setState('done');
       voice.say('Time! Great work.');
-      const rec = G.tally.finish('bag', 'Heavy bag', { rounds: G.rounds, score: G.score });
+      const rec = G.tally.finish('bag', 'Gym', { rounds: G.rounds, score: G.score });
       addSession(rec);
       later(1500, () => nav(`/summary/${rec.id}`));
     } else {
@@ -274,7 +274,7 @@ function BagGame() {
 
       {state === 'ready' && (
         <div className="paper taped readycard">
-          <div className="label">Heavy bag</div>
+          <div className="label">Gym</div>
           <div className="inked" style={{ fontSize: 44 }}>Glove up.</div>
           <p style={{ fontWeight: 600 }}>Throw what the coach calls, land it on the bag, keep the streak going.</p>
           <div className="row" style={{ alignItems: 'center', marginBottom: 10 }}>
