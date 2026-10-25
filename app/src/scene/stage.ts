@@ -6,7 +6,7 @@ import { Gym, buildGym } from './gym';
 
 /* The 3D stage shared by the calibrate / home / mirror screens: one renderer, one gym, one boxer.
  * Screens register per-frame callbacks and pick a camera shot. */
-export type Shot = 'hero' | 'threeQuarter' | 'side' | 'front' | 'lesson' | 'bagL' | 'bagR';
+export type Shot = 'hero' | 'threeQuarter' | 'side' | 'front' | 'lesson' | 'demo' | 'bagL' | 'bagR';
 type FrameFn = (dt: number, t: number) => void;
 
 const SHOTS: Record<Shot, { pos: [number, number, number]; look: [number, number, number]; fov: number }> = {
@@ -15,8 +15,16 @@ const SHOTS: Record<Shot, { pos: [number, number, number]; look: [number, number
   side: { pos: [3.4, 1.45, 0.6], look: [0, 1.25, 0.3], fov: 38 },
   front: { pos: [0, 1.5, 3.2], look: [0, 1.25, 0.2], fov: 42 },
   lesson: { pos: [-0.35, 1.55, 4.3], look: [-0.75, 1.15, -0.3], fov: 42 },
+  demo: { pos: [0.95, 1.4, 4.0], look: [0.15, 1.05, 0.1], fov: 40 },
   bagL: { pos: [3.5, 1.55, 0.55], look: [0.05, 1.2, 0.5], fov: 38 },
   bagR: { pos: [-3.5, 1.55, 0.55], look: [-0.05, 1.2, 0.5], fov: 38 },
+};
+
+const SPOT = {
+  coachHome: { pos: [-1.55, 0, -0.9] as [number, number, number], rot: 0.45 },
+  coachFront: { pos: [0, 0, 0.25] as [number, number, number], rot: -0.5 },
+  boxerHome: { pos: [0, 0, 0] as [number, number, number], rot: 0 },
+  boxerBack: { pos: [1.35, 0, -1.25] as [number, number, number], rot: -0.35 },
 };
 
 export class Stage {
@@ -111,6 +119,28 @@ export class Stage {
     this.sensei = f;
   }
 
+  /** Lessons: the coach steps to the front to demonstrate while the student's boxer steps back, and the reverse. */
+  spotlight(coachFront: boolean, dur = 0.9) {
+    const [c, b] = coachFront ? [SPOT.coachFront, SPOT.boxerBack] : [SPOT.coachHome, SPOT.boxerHome];
+    this.tweenTo(this.sensei.root, c.pos, c.rot, dur);
+    this.tweenTo(this.boxer.root, b.pos, b.rot, dur);
+  }
+
+  private tweens: { o: THREE.Object3D; p0: THREE.Vector3; p1: THREE.Vector3; r0: number; r1: number; k: number; dur: number }[] = [];
+  tweenTo(o: THREE.Object3D, pos: [number, number, number], rotY: number, dur: number) {
+    this.tweens = this.tweens.filter((t) => t.o !== o);
+    this.tweens.push({ o, p0: o.position.clone(), p1: new THREE.Vector3(...pos), r0: o.rotation.y, r1: rotY, k: 0, dur });
+  }
+  private stepTweens(dt: number) {
+    for (const t of this.tweens) {
+      t.k = Math.min(1, t.k + dt / t.dur);
+      const e = t.k < 0.5 ? 4 * t.k ** 3 : 1 - (-2 * t.k + 2) ** 3 / 2;
+      t.o.position.lerpVectors(t.p0, t.p1, e);
+      t.o.rotation.y = t.r0 + (t.r1 - t.r0) * e;
+    }
+    this.tweens = this.tweens.filter((t) => t.k < 1);
+  }
+
   onFrame(fn: FrameFn) { this.frames.add(fn); return () => { this.frames.delete(fn); }; }
 
   setShot(shot: Shot, instant = false) {
@@ -150,6 +180,7 @@ export class Stage {
 
   private step(dt: number) {
     const t = this.t;
+    if (this.tweens.length) this.stepTweens(dt);
     if (this.camK < 1) {
       this.camK = Math.min(1, this.camK + dt / 0.6);
       const k = 1 - Math.pow(1 - this.camK, 3);

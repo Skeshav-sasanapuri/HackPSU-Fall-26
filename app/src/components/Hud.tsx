@@ -12,6 +12,9 @@ export function HudChips({ className = '' }: { className?: string }) {
 }
 
 /** Comic starburst with text, placed at screen coordinates. */
+/** the overlay's zoom (set from the window size by the app shell); screen positions are divided by it */
+export const uiScale = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ui')) || 1;
+
 export function Burst({ x, y, big, small, color = '#d4a017' }: { x: number; y: number; big: string; small?: string; color?: string }) {
   const pts: string[] = [];
   const n = 14;
@@ -20,7 +23,7 @@ export function Burst({ x, y, big, small, color = '#d4a017' }: { x: number; y: n
     pts.push(`${(50 + Math.cos(a) * 50 * r).toFixed(1)},${(50 + Math.sin(a) * 50 * r).toFixed(1)}`);
   }
   return (
-    <div className="burst" style={{ left: x, top: y }}>
+    <div className="burst" style={{ left: x / uiScale(), top: y / uiScale() }}>
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
         <polygon points={pts.join(' ')} fill="#17130e" transform="translate(3 3)" />
         <polygon points={pts.join(' ')} fill={color} stroke="#17130e" strokeWidth="2.2" vectorEffect="non-scaling-stroke" />

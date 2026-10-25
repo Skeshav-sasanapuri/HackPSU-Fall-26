@@ -27,7 +27,7 @@ export function Train() {
         <div className="paper taped" style={{ transform: 'rotate(-1.5deg)' }}>
           <div className="label">Coach says</div>
           <div className="inked" style={{ fontSize: 'clamp(30px, 3.4vw, 46px)' }}>Pick a lesson, kid.</div>
-          <p style={{ margin: '4px 0 0', fontWeight: 600 }}>Each one: watch me, copy me, then I call it and you throw it. {earned} / {LESSONS.length * 3} stars.</p>
+          <p style={{ margin: '4px 0 0', fontWeight: 600 }}>Calibrate, watch me, then you get three tries. {earned} / {LESSONS.length * 3} stars.</p>
         </div>
         <HudChips />
       </div>

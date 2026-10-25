@@ -166,18 +166,19 @@
 .trio-page > .msg { max-width: 640px; margin: 0 auto 18px; }
 
 /* ---------- train ---------- */
-.trainpage { min-height: 100%; padding: 22px 28px 40px; }
-.trainhead { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; max-width: 760px; position: relative; }
-.trainhead .hudchips { position: fixed; top: 86px; }
-.sect { font-size: 34px; margin: 26px 0 12px; }
-.lessongrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 18px; max-width: 1180px; }
+.trainpage { min-height: 100%; padding: 16px 28px 24px; }
+.trainhead { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; position: relative; }
+.trainhead .hudchips { position: absolute; top: 0; right: 0; }
+.sect { font-size: 26px; margin: 14px 0 8px; }
+.lessongrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); gap: 12px; max-width: 1280px; }
 .lesson { position: relative; text-align: left; cursor: pointer; font: inherit; border: 3px solid var(--ink); transition: transform .12s; padding-top: 12px; }
 .lesson:nth-child(3n+1) { transform: rotate(-1deg); }
 .lesson:nth-child(3n+2) { transform: rotate(.8deg); }
 .lesson:hover { transform: translateY(-5px) rotate(0); }
-.lesson .num { position: absolute; right: 12px; top: 6px; font-size: 40px; -webkit-text-stroke: 2px var(--ink); text-shadow: 3px 3px 0 var(--ink); }
-.lesson .lt { font-size: 32px; display: block; color: var(--paper); padding-right: 40px; }
-.lesson p { margin: 6px 0 0; font-size: 14px; color: var(--ink-2); }
+.lesson .num { position: absolute; right: 10px; top: 4px; font-size: 30px; -webkit-text-stroke: 2px var(--ink); text-shadow: 3px 3px 0 var(--ink); }
+.lesson .lt { font-size: 24px; display: block; color: var(--paper); padding-right: 40px; }
+.lesson p { margin: 4px 0 0; font-size: 12.5px; line-height: 1.3; color: var(--ink-2); display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+.lessongrid .paper { padding: 8px 12px 10px; }
 .stars { display: inline-flex; gap: 2px; margin-top: 4px; }
 
 .lessontitle { position: absolute; top: 22px; left: 28px; max-width: 360px; transform: rotate(-1.5deg); }
@@ -185,9 +186,9 @@
 .phases span { font-family: var(--display); font-weight: 800; font-size: 15px; letter-spacing: .1em; text-transform: uppercase; padding: 1px 10px; border: 2.5px solid var(--ink); color: var(--ink-2); }
 .phases span.on { background: var(--ink); color: var(--paper); }
 .callout { position: absolute; left: 50%; top: 14%; transform: translateX(-50%); text-align: center; pointer-events: none; width: min(720px, 90%); }
-.callout .inked { font-size: clamp(44px, 6vw, 84px); animation: countpop .5s cubic-bezier(.2, 1.7, .4, 1) both; display: inline-block; }
-.callout .inked.big { font-size: clamp(70px, 10vw, 140px); }
-.callout .sub { display: inline-block; margin-top: 10px; font-weight: 700; font-size: 19px; padding: 6px 16px; }
+.callout .inked { font-size: clamp(38px, 4.6vw, 68px); animation: countpop .5s cubic-bezier(.2, 1.7, .4, 1) both; display: inline-block; }
+.callout .inked.big { font-size: clamp(52px, 6.6vw, 96px); }
+.callout .sub { display: inline-block; margin-top: 8px; font-weight: 700; font-size: 16px; padding: 5px 14px; }
 .repdots { display: flex; justify-content: center; gap: 8px; margin-top: 10px; }
 .repdots i { width: 16px; height: 16px; border-radius: 50%; border: 3px solid var(--ink); background: var(--paper); }
 .repdots i.f { background: var(--red); }
@@ -195,7 +196,7 @@
 .lessoncard ol { margin: 0; padding-left: 22px; font-weight: 600; }
 .tipcard { position: absolute; right: 28px; bottom: 28px; width: min(380px, 42%); }
 .tipcard p { margin: 4px 0 0; font-weight: 600; }
-.resultcard { position: absolute; right: 28px; top: 22px; bottom: 22px; width: min(560px, 54%); overflow: auto; }
+.resultcard { position: absolute; right: 28px; bottom: 28px; width: min(660px, 62%); max-height: calc(100% - 56px); overflow: auto; }
 .resrow { display: flex; gap: 22px; margin: 6px 0 4px; }
 .resrow > div { display: grid; }
 .atts { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 8px; }
@@ -281,3 +282,35 @@ input[type=range].skin::-moz-range-thumb, input[type=range].hue::-moz-range-thum
 .toast { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%) rotate(-.5deg); z-index: 15; font-weight: 600; max-width: 90%; animation: countpop .4s both; }
 .trio-page { display: flex; flex-direction: column; }
 .trio-page > .trio-foot { margin-top: auto; padding-top: 26px; }
+
+/* ---------- lesson flow ---------- */
+.lessoncard .lead { font-size: 17px; font-weight: 600; margin: 4px 0 8px; line-height: 1.35; }
+.lessoncard .howto { font-size: 14px; color: var(--ink-2); margin: 8px 0 0; }
+.lessoncard .err { color: var(--red); font-weight: 700; font-size: 15px; margin: 8px 0 0; }
+.hud .row { margin-top: 12px; gap: 10px; align-items: center; flex-wrap: wrap; }
+.hud .row > * { flex: none; }
+.hud .btn.ghost { background: var(--paper); }
+.hud .btn.ghost:hover { background: var(--ink); }
+.reshead { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.reshead .inked { font-size: 34px; }
+.reshead .avg { margin-left: auto; display: grid; justify-items: end; }
+.reshead .avg .numeral { font-size: 46px; }
+.tries { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
+.try { border: 3px solid var(--ink); padding: 6px 10px 8px; background: var(--paper-2); }
+.try .numeral { font-size: 44px; display: block; }
+.try.bad .numeral { color: var(--red); }
+.try .what { font-weight: 700; font-size: 14px; line-height: 1.25; }
+.try .spd { font-size: 13px; color: var(--ink-2); font-weight: 600; }
+.try .tip { font-size: 12.5px; color: var(--ink-2); margin-top: 4px; line-height: 1.3; }
+
+/* ---------- fit the window: the overlay scales with the window instead of scrolling ---------- */
+.over { zoom: var(--ui, 1); }
+
+/* ---------- hide-away step bar ---------- */
+.shell { position: relative; }
+.top.curtain { position: absolute; left: 0; right: 0; top: 0; z-index: 40; transform: translateY(-105%); transition: transform .26s cubic-bezier(.3, 1.3, .5, 1); box-shadow: 0 6px 0 rgba(10, 6, 2, .6); padding: 10px 24px; }
+.top.curtain.open { transform: translateY(0); }
+.top.curtain .mark { font-size: 28px; }
+.menutab { position: absolute; top: 0; left: 50%; transform: translateX(-50%); z-index: 39; width: 56px; height: 22px; display: grid; place-content: center; gap: 3px; background: var(--paper); border: 2.5px solid var(--ink); border-top: 0; cursor: pointer; padding: 0; box-shadow: 3px 3px 0 rgba(10, 6, 2, .7); transition: opacity .2s; }
+.menutab i { display: block; width: 22px; height: 2.5px; background: var(--ink); }
+.menutab.hide { opacity: 0; pointer-events: none; }

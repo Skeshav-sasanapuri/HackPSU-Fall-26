@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ArmSim } from '../sim/armSim';
 import { Calibration } from './calibration';
-import { Detection, MoveDetector } from './detector';
+import { Detection, MoveDetector, SegmentFeatures, classify } from './detector';
 import { ArmEngine } from './engine';
 import { HoldRecorder } from './hold';
 import { MOVE_IDS, MoveId } from './moves';
@@ -51,4 +51,11 @@ describe('move detector', () => {
     expect(j.flareDeg).toBeLessThan(25);
     expect(j.peakSpeed).toBeGreaterThan(4);
   });
+});
+
+describe('classify: sloppy punches are not jabs', () => {
+  const base: SegmentFeatures = { dz: 0.3, dyUp: 0, dyRise: 0.1, yMean: 0, sweepIn: 0.1, outMax: 0.2, phiMin: 20, yAtZmax: 0.1, yAtOut: 0.1, vPeak: 5, jabs: 1, durMs: 300, zStart: 0, apex: [0, 0.05, 0.4] };
+  it('straight jab', () => expect(classify(base)).toBe('jab'));
+  it('uppercut finishing with a straight arm', () => expect(classify({ ...base, dyRise: 0.4, apex: [0, 0.38, 0.25] })).toBe('uppercut'));
+  it('wide hook with a fairly open elbow', () => expect(classify({ ...base, sweepIn: 0.35, outMax: 0.5, phiMin: 30, apex: [-0.3, 0.05, 0.2] })).toBe('hook'));
 });

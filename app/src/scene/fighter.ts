@@ -17,7 +17,8 @@ export interface Fighter {
   shoulderWorld(side: Side, out?: THREE.Vector3): THREE.Vector3;
   setColors(c: Partial<FighterColors>): void;
   /** rigged models only: play a whole-body clip once (e.g. 'coach_clapping'); resolves when it ends or is stopped */
-  gesture?(name: string): Promise<void>;
+  gesture?(name: string, o?: { speed?: number; side?: Side }): Promise<void>;
+  hasClip?(name: string): boolean;
   stopGesture?(): void;
   readonly gesturing?: boolean;
   dispose?(): void;

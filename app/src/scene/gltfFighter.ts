@@ -21,6 +21,8 @@ export class GltfFighter implements Fighter {
   private idleAction: THREE.AnimationAction | null = null;
   private clips = new Map<string, THREE.AnimationClip>();
   private gest: { action: THREE.AnimationAction; done: () => void } | null = null;
+  /** which hand does the work in each move clip */
+  private sides = new Map<string, Side>();
   private arms = {} as Record<Side, { upper: THREE.Bone; fore: THREE.Bone; hand: THREE.Bone; drv: ArmDriver; glove: THREE.Object3D }>;
   private hips: THREE.Bone | null = null;
   private skinMats: THREE.MeshToonMaterial[] = [];
@@ -65,7 +67,7 @@ export class GltfFighter implements Fighter {
       const conv = (old: THREE.Material) => {
         const src = old as THREE.MeshStandardMaterial;
         const name = (src.name || '').toLowerCase();
-        if (/short|pant|trunk|cloth/.test(name)) { const t = toon(colors.shorts); this.shortsMats.push(t); return t; }
+        if (/^(shorts|trunks|pants)/.test(name)) { const t = toon(colors.shorts); this.shortsMats.push(t); return t; }
         if (/joint/.test(name)) return toon('#2a2622');
         // tops (sports bra, coach's vest) keep the colour picked in Blender
         // an alpha card whose texture did not survive export would draw as a solid sheet: hide it
@@ -120,6 +122,7 @@ export class GltfFighter implements Fighter {
     }
 
     for (const c of clips) this.clips.set(c.name, c);
+    this.probeSides(model, clips, need('LeftHand'), need('RightHand'));
     const idle = clips.find((c) => /idle|stance|guard|fight/i.test(c.name));
     if (idle) {
       this.mixer = new THREE.AnimationMixer(model);
@@ -135,15 +138,46 @@ export class GltfFighter implements Fighter {
   }
 
   get gesturing() { return this.gest != null; }
+  hasClip(name: string) { return this.clips.has(name); }
 
-  gesture(name: string): Promise<void> {
+  /** Plays each move clip once and measures which hand travels furthest; the bones are restored afterwards. */
+  private probeSides(model: THREE.Object3D, clips: THREE.AnimationClip[], lh: THREE.Bone, rh: THREE.Bone) {
+    const saved: [THREE.Object3D, THREE.Vector3, THREE.Quaternion, THREE.Vector3][] = [];
+    model.traverse((o) => { if ((o as THREE.Bone).isBone) saved.push([o, o.position.clone(), o.quaternion.clone(), o.scale.clone()]); });
+    const mixer = new THREE.AnimationMixer(model);
+    const a = new THREE.Vector3(), b = new THREE.Vector3(), l0 = new THREE.Vector3(), r0 = new THREE.Vector3();
+    for (const c of clips) {
+      if (/idle|stance|coach_/i.test(c.name)) continue;
+      const act = mixer.clipAction(c).play();
+      let dl = 0, dr = 0;
+      for (let k = 0; k <= 16; k++) {
+        act.time = (c.duration * k) / 16;
+        mixer.update(0);
+        model.updateMatrixWorld(true);
+        lh.getWorldPosition(a); rh.getWorldPosition(b);
+        if (k === 0) { l0.copy(a); r0.copy(b); }
+        dl = Math.max(dl, a.distanceTo(l0)); dr = Math.max(dr, b.distanceTo(r0));
+      }
+      act.stop();
+      mixer.uncacheClip(c);
+      this.sides.set(c.name, dl >= dr ? 'L' : 'R');
+    }
+    for (const [o, p, q, sc] of saved) { o.position.copy(p); o.quaternion.copy(q); o.scale.copy(sc); }
+    model.updateMatrixWorld(true);
+  }
+
+  /** Play a whole-body clip once. With `side`, a move clip is mirrored when it punches with the other hand. */
+  gesture(name: string, o: { speed?: number; side?: Side } = {}): Promise<void> {
     const clip = this.clips.get(name);
     if (!clip || !this.mixer || !this.idleAction) return Promise.resolve();
     this.stopGesture();
+    const own = this.sides.get(name);
+    this.root.scale.x = o.side && own && own !== o.side ? -1 : 1;
     const action = this.mixer.clipAction(clip).reset().setLoop(THREE.LoopOnce, 1);
     action.clampWhenFinished = true;
+    action.timeScale = o.speed ?? 1;
     action.play();
-    this.idleAction.crossFadeTo(action, 0.3, false);
+    this.idleAction.crossFadeTo(action, 0.2, false);
     return new Promise((res) => { this.gest = { action, done: res }; });
   }
 
@@ -152,7 +186,9 @@ export class GltfFighter implements Fighter {
     if (!g || !this.idleAction) return;
     this.gest = null;
     this.idleAction.reset().play();
-    g.action.crossFadeTo(this.idleAction, 0.35, false);
+    g.action.crossFadeTo(this.idleAction, 0.25, false);
+    // the mirror is undone right away; the short fade back to the idle hides the flip
+    this.root.scale.x = 1;
     g.done();
   }
 
@@ -179,7 +215,6 @@ export class GltfFighter implements Fighter {
   }
 
   guard(side: Side, t = 0) {
-    if (this.idleAction) return;   // the boxing idle clip already holds the guard
     const g = guardDirs(side === 'L' ? 1 : -1);
     g.D.y += Math.sin(t * 2.1 + (side === 'L' ? 0 : 1.5)) * 0.03;
     this.driveArm(side, g.U, g.D.normalize(), g.N);

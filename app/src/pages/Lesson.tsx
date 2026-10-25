@@ -5,19 +5,21 @@ import { Burst, HudChips } from '../components/Hud';
 import { Stars } from '../components/Stars';
 import { useStageConfig } from '../components/StageView';
 import { Detection } from '../core/detector';
-import { MOVE_INFO, MoveId } from '../core/moves';
+import { MOVE_INFO } from '../core/moves';
 import { Attempt, scoreAttempt, stars } from '../core/score';
 import { SessionTally, useHistory } from '../history';
-import { useRecalibrateKey } from '../hooks';
 import { useArm, useHub } from '../hubContext';
-import { Cancelled, LESSONS, Lesson as LessonT, collectMoves, lessonById, simDo, timeToGuard, useSensei, useSimPuppet, wait, waitForMove } from '../lessons';
+import { Cancelled, LESSONS, Lesson as LessonT, calibrateHold, collectMoves, lessonById, simDo, timeToGuard, useSensei, useSimPuppet, wait, waitForMove } from '../lessons';
 import { getStage } from '../scene/stage';
 import { useLink } from '../components/SensorGuard';
 import { sfx } from '../sfx';
+import { useProfile } from '../store';
 import { voice } from '../voice';
 
-type Phase = 'intro' | 'watch' | 'copy' | 'cue' | 'done';
-const COPY_REPS = 4, CUE_REPS = 5, COMBO_REPS = 4;
+/* One lesson: calibrate, the coach steps forward and shows the move (slow, then full speed), then the student
+ * tries it three times and each try is scored. "Again" repeats the three tries; "Watch again" replays the demo. */
+type Phase = 'intro' | 'calibrate' | 'watch' | 'try' | 'done';
+const TRIES = 3;
 
 interface Pop { id: number; x: number; y: number; big: string; small: string; color: string }
 let popId = 0;
@@ -25,9 +27,7 @@ let popId = 0;
 export function Lesson() {
   const { id = '' } = useParams();
   const lesson = lessonById(id);
-  const cal = useCalibration((s) => s.cal);
   if (!lesson) return <Navigate to="/train" replace />;
-  if (!cal) return <Navigate to={`/calibrate?next=/train/${id}`} replace />;
   return <Runner key={lesson.id} lesson={lesson} />;
 }
 
@@ -39,22 +39,27 @@ function Runner({ lesson }: { lesson: LessonT }) {
   useSimPuppet(hub);
   const setStars = useHistory((h) => h.setStars);
   const addSession = useHistory((h) => h.add);
-  useStageConfig({ shot: 'lesson' });
-  useRecalibrateKey();
+  const setCal = useCalibration((s) => s.set);
+  const phoneAxis = useProfile((p) => p.phoneAxis);
 
   const [phase, setPhase] = useState<Phase>('intro');
   const [caption, setCaption] = useState('');
   const [sub, setSub] = useState('');
-  const [rep, setRep] = useState({ i: 0, n: 0 });
+  const [count, setCount] = useState(0);
+  const [progress, setProgress] = useState(0);
+  const [error, setError] = useState('');
+  const [tryN, setTryN] = useState(0);
   const [attempts, setAttempts] = useState<Attempt[]>([]);
   const [last, setLast] = useState<Attempt | null>(null);
   const [pops, setPops] = useState<Pop[]>([]);
+  const calibrated = useRef(false);
   const abort = useRef<AbortController | null>(null);
+  useStageConfig({ shot: phase === 'watch' ? 'demo' : 'lesson', ghost: phase === 'calibrate' });
   const isCombo = !!lesson.combo;
   const m = lesson.moves[0];
   const info = MOVE_INFO[m];
 
-  useEffect(() => () => { abort.current?.abort(); voice.stop(); }, []);
+  useEffect(() => () => { abort.current?.abort(); voice.stop(); arm.cancelHold(); getStage().spotlight(false, 0.3); }, [arm]);
   // the coach greets the student while the intro card is up (the rigged model may still be loading)
   useEffect(() => { const t = setTimeout(() => { if (!abort.current) void sensei.gesture('coach_talking'); }, 900); return () => clearTimeout(t); }, [sensei]);
 
@@ -65,6 +70,7 @@ function Runner({ lesson }: { lesson: LessonT }) {
     abort.current?.abort();
     sensei.stop();
     voice.stop();
+    getStage().spotlight(false);
     setPhase('intro');
   }, [linkOk]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -80,88 +86,74 @@ function Runner({ lesson }: { lesson: LessonT }) {
     if (a.correct) sfx.ok(); else sfx.bad();
   };
 
-  const record = (a: Attempt, list: Attempt[]) => { list.push(a); setAttempts([...list]); setLast(a); pop(a); };
-
-  const start = async () => {
+  const run = async (o: { watch: boolean }) => {
     abort.current?.abort();
     const ctl = new AbortController();
     abort.current = ctl;
     const sig = ctl.signal;
+    const stage = getStage();
     const list: Attempt[] = [];
     const tally = new SessionTally();
     const offTally = arm.onMove((d) => tally.add(d));
-    setAttempts([]); setLast(null);
-    const holdKind = (x: MoveId) => MOVE_INFO[x].kind === 'hold';
+    setAttempts([]); setLast(null); setError('');
+    sensei.stop();
     try {
-      // 1. watch
-      setPhase('watch');
-      if (!isCombo) {
-        for (let i = 0; i < 3; i++) {
-          setCaption('Watch me'); setSub(info.keys[i]);
-          voice.say(info.keys[i]);
-          await sensei.playMove(m, 0.45);
-          await wait(600, sig);
-        }
-      } else {
-        for (let i = 0; i < 2; i++) {
-          setCaption('Watch me'); setSub(lesson.moves.map((x) => MOVE_INFO[x].name).join(' → '));
-          voice.say(lesson.title);
-          await sensei.playCombo(lesson.moves, 0.6);
-          await wait(700, sig);
-        }
+      // 1. calibrate (once per visit)
+      if (!calibrated.current) {
+        if (!hub.status().watch.up) { setError('The watch is not connected. Open the Jab app on the watch and tap Start.'); setPhase('intro'); return; }
+        setPhase('calibrate'); setProgress(0);
+        voice.say('Arms straight out in front. Hold still.');
+        const r = await calibrateHold(arm, hub, phoneAxis, hub.status().phone.up, sig, setCount, setProgress);
+        if ('error' in r) { setError(r.error); setPhase('intro'); sfx.bad(); return; }
+        setCal(r);
+        calibrated.current = true;
+        sfx.ok();
+        await wait(500, sig);
       }
-      // 2. copy alongside the coach (single moves)
-      if (!isCombo) {
-        setPhase('copy');
-        for (let r = 0; r < COPY_REPS; r++) {
-          setRep({ i: r + 1, n: COPY_REPS });
-          setCaption('Together!'); setSub(`Copy me: ${info.name.toLowerCase()}`);
-          await wait(700, sig);
-          voice.say(info.cue);
-          void sensei.playMove(m, 1);
-          simDo(hub, [m], 250);
-          const d = await waitForMove(arm, m, holdKind(m) ? 3800 : 2600, sig);
-          const ret = d && !holdKind(m) ? await timeToGuard(arm, 1500) : null;
-          record(scoreAttempt(m, d, { returnMs: ret }), list);
-          await wait(1100, sig);
-        }
-      }
-      // 3. on the coach's call
-      setPhase('cue');
-      const reps = isCombo ? COMBO_REPS : CUE_REPS;
-      for (let r = 0; r < reps; r++) {
-        setRep({ i: r + 1, n: reps });
-        setCaption('On my call…'); setSub(isCombo ? lesson.title : 'Guard up. Wait for it.');
-        await wait(1200 + Math.random() * 1800, sig);
-        const tCue = performance.now();
-        if (!isCombo) {
-          setCaption(info.cue); setSub('');
-          voice.say(info.cue);
-          simDo(hub, [m]);
-          const d = await waitForMove(arm, m, holdKind(m) ? 3800 : 2600, sig);
-          const ret = d && !holdKind(m) ? await timeToGuard(arm, 1500) : null;
-          tally.called++; if (d?.move === m) tally.calledRight++;
-          record(scoreAttempt(m, d, { reactionMs: d ? Math.max(0, d.t - tCue) : null, returnMs: ret }), list);
-        } else {
-          const words = lesson.moves.map((x) => MOVE_INFO[x].cue.replace('!', ''));
-          setCaption(words.join(', ') + '!'); setSub('');
-          voice.say(words.join(', ') + '!');
-          simDo(hub, lesson.moves, 500);
-          const ds = await collectMoves(arm, 1500 * lesson.moves.length + 800, sig, (got) => got.length >= lesson.moves.length);
-          let all = true;
-          lesson.moves.forEach((x, i) => {
-            const d: Detection | null = ds[i] ?? null;
-            const a = scoreAttempt(x, d, { reactionMs: i === 0 && d ? Math.max(0, d.t - tCue) : null });
-            tally.called++; if (a.correct) tally.calledRight++; else all = false;
-            list.push(a);
-          });
-          if (all) tally.combos++;
-          setAttempts([...list]);
-          const lastA = list[list.length - 1];
-          setLast(lastA);
-          pop({ ...lastA, correct: all, praise: all ? 'Combo!' : 'Broke it' });
-        }
+      // 2. the coach steps forward and shows it: slow, then full speed
+      if (o.watch) {
+        setPhase('watch');
+        stage.spotlight(true);
+        setCaption('Watch me'); setSub('');
         await wait(1000, sig);
+        for (const [i, speed] of [0.55, 1].entries()) {
+          setCaption(i === 0 ? 'Slow first' : 'Full speed');
+          setSub(isCombo ? lesson.moves.map((x) => MOVE_INFO[x].name).join(' → ') : info.keys.join('  ·  '));
+          voice.say(i === 0 ? (isCombo ? lesson.title : info.keys[0]) : 'Now at full speed.');
+          await sensei.demo(lesson.moves, speed, stage.boxer.lead);
+          await wait(700, sig);
+        }
+        stage.spotlight(false);
+        await wait(900, sig);
+      }
+      // 3. three scored tries
+      setPhase('try');
+      for (let r = 0; r < TRIES; r++) {
+        setTryN(r + 1);
+        setCaption('Your turn'); setSub(`Try ${r + 1} of ${TRIES}: ${lesson.title.toLowerCase()}`);
+        voice.say(r === 0 ? `Your turn. ${isCombo ? lesson.title : info.cue}` : isCombo ? 'Again.' : info.cue);
+        let a: Attempt;
+        if (!isCombo) {
+          simDo(hub, [m], 600);
+          const hold = info.kind === 'hold';
+          const d = await waitForMove(arm, m, hold ? 6000 : 5000, sig);
+          const ret = d && !hold ? await timeToGuard(arm, 1500) : null;
+          a = scoreAttempt(m, d, { returnMs: ret });
+        } else {
+          simDo(hub, lesson.moves, 600);
+          const ds = await collectMoves(arm, 5000 + 1200 * lesson.moves.length, sig, (got) => got.length >= lesson.moves.length);
+          const parts = lesson.moves.map((x, i) => scoreAttempt(x, (ds[i] as Detection | undefined) ?? null));
+          const all = parts.every((p) => p.correct);
+          const bad = parts.find((p) => !p.correct);
+          a = {
+            ...parts[parts.length - 1], correct: all, score: Math.round(parts.reduce((s, p) => s + p.score, 0) / parts.length),
+            peakSpeed: Math.max(...parts.map((p) => p.peakSpeed)), praise: all ? 'Combo!' : 'Broke it', tips: bad ? bad.tips : [],
+          };
+          if (all) tally.combos++;
+        }
+        tally.called++; if (a.correct) tally.calledRight++;
+        list.push(a); setAttempts([...list]); setLast(a); pop(a);
+        await wait(1600, sig);
       }
       // 4. results
       const n = stars(list);
@@ -180,7 +172,9 @@ function Runner({ lesson }: { lesson: LessonT }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.code === 'Space' && (phase === 'intro' || phase === 'done')) { e.preventDefault(); void start(); }
+      if (e.code === 'Space' && (phase === 'intro' || phase === 'done')) { e.preventDefault(); void run({ watch: phase === 'intro' }); }
+      if ((e.key === 'w' || e.key === 'W') && phase === 'done') void run({ watch: true });
+      if ((e.key === 'r' || e.key === 'R') && (phase === 'intro' || phase === 'done')) { calibrated.current = false; void run({ watch: false }); }
       if (e.key === 'Escape') nav('/train');
     };
     window.addEventListener('keydown', onKey);
@@ -191,25 +185,31 @@ function Runner({ lesson }: { lesson: LessonT }) {
   const next = LESSONS[idx + 1];
   const avg = attempts.length ? Math.round(attempts.reduce((s, a) => s + a.score, 0) / attempts.length) : 0;
   const n = stars(attempts);
+  const steps: [Phase, string][] = [['calibrate', 'Calibrate'], ['watch', 'Watch'], ['try', 'Your turn']];
 
   return (
     <div className="hud">
       <div className="paper taped lessontitle">
         <div className="label">{isCombo ? 'Combo' : `Lesson ${idx + 1}`}</div>
-        <div className="inked" style={{ fontSize: 34 }}>{lesson.title}</div>
-        <div className="phases">
-          {(['watch', 'copy', 'cue'] as Phase[]).filter((p) => !(isCombo && p === 'copy')).map((p) => (
-            <span key={p} className={phase === p ? 'on' : ''}>{p === 'cue' ? 'On call' : p}</span>
-          ))}
-        </div>
+        <div className="inked" style={{ fontSize: 28 }}>{lesson.title}</div>
+        <div className="phases">{steps.map(([p, t]) => <span key={p} className={phase === p ? 'on' : ''}>{t}</span>)}</div>
       </div>
       <HudChips />
 
-      {phase !== 'intro' && phase !== 'done' && (
+      {phase === 'calibrate' && (
+        <div className="paper lessoncard">
+          <div className="label">Calibrate</div>
+          <p className="lead">Hold both arms straight out in front, palms down. Stay still.</p>
+          <div className="holdbar"><i style={{ width: `${progress * 100}%` }} /></div>
+        </div>
+      )}
+      {phase === 'calibrate' && count > 0 && <div key={count} className="count inked mustard">{count}</div>}
+
+      {(phase === 'watch' || phase === 'try') && (
         <div className="callout">
-          <div key={caption} className={`inked ${phase === 'cue' && caption !== 'On my call…' ? 'red big' : ''}`}>{caption}</div>
+          <div key={caption} className={`inked ${phase === 'try' ? 'red big' : ''}`}>{caption}</div>
           {sub && <div className="paper plain sub">{sub}</div>}
-          {rep.n > 0 && phase !== 'watch' && <div className="repdots">{Array.from({ length: rep.n }, (_, i) => <i key={i} className={i < rep.i ? 'f' : ''} />)}</div>}
+          {phase === 'try' && <div className="repdots">{Array.from({ length: TRIES }, (_, i) => <i key={i} className={i < tryN ? 'f' : ''} />)}</div>}
         </div>
       )}
 
@@ -218,47 +218,48 @@ function Runner({ lesson }: { lesson: LessonT }) {
       {phase === 'intro' && (
         <div className="paper lessoncard">
           <div className="label">{isCombo ? 'The combo' : 'The move'}</div>
-          <p style={{ fontSize: 19, fontWeight: 600, margin: '4px 0 10px' }}>{lesson.blurb}</p>
+          <p className="lead">{lesson.blurb}</p>
           {!isCombo ? <ol>{info.keys.map((k) => <li key={k}>{k}</li>)}</ol> : <ol>{lesson.moves.map((x, i) => <li key={i}>{MOVE_INFO[x].name}</li>)}</ol>}
-          <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
-            <button className="btn" onClick={() => void start()}><span className="key">Space</span>Start lesson</button>
-            <button className="btn ghost" style={{ background: 'var(--paper)' }} onClick={() => nav('/train')}>Lessons</button>
+          <p className="howto">Calibrate, watch the coach, then try it {TRIES} times.</p>
+          {error && <p className="err">{error}</p>}
+          <div className="row">
+            <button className="btn small" onClick={() => void run({ watch: true })}><span className="key">Space</span>{error ? 'Try again' : 'Start'}</button>
+            <button className="btn small ghost" onClick={() => nav('/train')}>Lessons</button>
           </div>
         </div>
       )}
 
-      {last && phase !== 'done' && phase !== 'intro' && (
+      {last && phase === 'try' && (
         <div className="paper tipcard">
           <div className="label">{last.correct ? `${last.praise} · ${last.score} pts` : last.praise}</div>
-          {(last.tips.length ? last.tips : ['Clean. Keep that rhythm.']).map((t) => <p key={t}>{t}</p>)}
+          {(last.tips.length ? last.tips : ['Clean. Keep that rhythm.']).slice(0, 2).map((t) => <p key={t}>{t}</p>)}
         </div>
       )}
 
       {phase === 'done' && (
         <div className="paper taped resultcard">
           <div className="label">Results</div>
-          <div className="inked red" style={{ fontSize: 46 }}>{caption}</div>
-          <Stars n={n} size={46} />
-          <div className="resrow">
-            <div><span className="label">Score</span><b className="numeral" style={{ fontSize: 44 }}>{avg}</b></div>
-            <div><span className="label">Right move</span><b className="numeral" style={{ fontSize: 44 }}>{attempts.filter((a) => a.correct).length}/{attempts.length}</b></div>
-            <div><span className="label">Best speed</span><b className="numeral" style={{ fontSize: 44 }}>{Math.max(0, ...attempts.map((a) => a.peakSpeed)).toFixed(1)}<small>m/s</small></b></div>
+          <div className="reshead">
+            <div className="inked red">{caption}</div>
+            <Stars n={n} size={30} />
+            <div className="avg"><span className="label">Score</span><b className="numeral">{avg}</b></div>
           </div>
-          <table className="atts">
-            <thead><tr><th>#</th><th>Called</th><th>You threw</th><th>Speed</th><th>React</th><th>Pts</th></tr></thead>
-            <tbody>
-              {attempts.map((a, i) => (
-                <tr key={i} className={a.correct ? '' : 'bad'}>
-                  <td>{i + 1}</td><td>{MOVE_INFO[a.expected].name}</td><td>{a.got ? MOVE_INFO[a.got].name : '—'}</td>
-                  <td>{a.peakSpeed ? a.peakSpeed.toFixed(1) : '—'}</td><td>{a.reactionMs != null ? `${Math.round(a.reactionMs)} ms` : '—'}</td><td>{a.score}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div style={{ display: 'flex', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
-            <button className="btn small" onClick={() => void start()}><span className="key">Space</span>Again</button>
-            {next && <button className="btn small" onClick={() => nav(`/train/${next.id}`)}>Next: {next.title}</button>}
-            <button className="btn small" style={{ background: 'var(--paper)', color: 'var(--ink)' }} onClick={() => nav('/train')}>Lessons</button>
+          <div className="tries">
+            {attempts.map((a, i) => (
+              <div key={i} className={`try ${a.correct ? '' : 'bad'}`}>
+                <div className="label">Try {i + 1}</div>
+                <b className="numeral">{a.score}</b>
+                <div className="what">{a.correct ? a.praise : a.got ? `Looked like a ${MOVE_INFO[a.got].name.toLowerCase()}` : 'Nothing detected'}</div>
+                {a.peakSpeed > 0 && <div className="spd">{a.peakSpeed.toFixed(1)} m/s</div>}
+                {a.tips[0] && <div className="tip">{a.tips[0]}</div>}
+              </div>
+            ))}
+          </div>
+          <div className="row">
+            <button className="btn small" onClick={() => void run({ watch: false })}><span className="key">Space</span>Again</button>
+            <button className="btn small ghost" onClick={() => void run({ watch: true })}><span className="key">W</span>Watch again</button>
+            {next && <button className="btn small ghost" onClick={() => nav(`/train/${next.id}`)}>Next: {next.title}</button>}
+            <button className="btn small ghost" onClick={() => nav('/train')}>Lessons</button>
           </div>
         </div>
       )}

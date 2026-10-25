@@ -27,6 +27,8 @@ export interface Detection {
 export interface SegmentFeatures {
   dz: number; dyUp: number; dyRise: number; yMean: number; sweepIn: number; outMax: number; phiMin: number;
   yAtZmax: number; yAtOut: number; vPeak: number; jabs: number; durMs: number; zStart: number;
+  /** where the hand got furthest from its start, relative to the start (reach units): x lead side, y up, z forward */
+  apex: V3;
 }
 
 const START = 1.5, END = 0.8, END_MS = 40, MAX_MS = 900;
@@ -116,8 +118,11 @@ function holdPose(s: Sample): MoveId | null {
 export function features(seg: Sample[]): SegmentFeatures {
   const z0 = seg[0].h[2], y0 = seg[0].h[1];
   let zmax = -9, ymax = -9, outMax = -9, phiMin = 999, yAtZmax = 0, yAtOut = 0, vPeak = 0, runMaxX = -9, sweepIn = 0, jabs = 0, armed = true;
-  let runMinY = 9, dyRise = 0, ySum = 0;
+  let runMinY = 9, dyRise = 0, ySum = 0, far = -1, apex: V3 = [0, 0, 0];
+  const x0 = seg[0].h[0];
   for (const s of seg) {
+    const ax = s.h[0] - x0, ay = s.h[1] - y0, az = s.h[2] - z0, r = ax * ax + ay * ay + az * az;
+    if (r > far) { far = r; apex = [ax, ay, az]; }
     if (s.h[2] > zmax) { zmax = s.h[2]; yAtZmax = s.h[1]; }
     if (s.h[1] > ymax) ymax = s.h[1];
     if (s.U[0] > outMax) { outMax = s.U[0]; yAtOut = s.h[1]; }
@@ -131,17 +136,24 @@ export function features(seg: Sample[]): SegmentFeatures {
     if (armed && s.phi < 40) { jabs++; armed = false; }
     if (!armed && s.phi > 50) armed = true;
   }
-  return { dz: zmax - z0, dyUp: ymax - y0, dyRise, yMean: ySum / seg.length, sweepIn, outMax, phiMin, yAtZmax, yAtOut, vPeak, jabs, durMs: seg[seg.length - 1].t - seg[0].t, zStart: z0 };
+  return { dz: zmax - z0, dyUp: ymax - y0, dyRise, yMean: ySum / seg.length, sweepIn, outMax, phiMin, yAtZmax, yAtOut, vPeak, jabs, durMs: seg[seg.length - 1].t - seg[0].t, zStart: z0, apex };
 }
 
+/* Order matters: the sideways sweep of a hook and the upward path of an uppercut are checked before the straight
+ * line of a jab, because a hook or uppercut thrown with a fairly straight elbow would otherwise read as a jab.
+ * The apex (where the hand got furthest from its start) says which way the punch actually went. */
 export function classify(f: SegmentFeatures): MoveId | null {
   const strike = f.vPeak >= MIN_STRIKE_SPEED;
-  if (f.phiMin < 40 && f.dz > 0.2) {
+  const [, up, fwd] = f.apex;
+  // hook: the upper arm swings out to the side and the hand sweeps back inward
+  if (strike && f.sweepIn > 0.2 && f.outMax > 0.35 && fwd < 0.45) return f.yAtOut < -0.3 ? 'body hook' : 'hook';
+  // uppercut: the hand travels mostly upward (or rises with the elbow kept bent)
+  if (strike && f.outMax < 0.55 && ((up > 0.15 && up >= 0.6 * fwd) || (f.dyRise > 0.25 && f.phiMin >= 35 && f.dz > 0.12))) return 'uppercut';
+  // jab: a straight line forward with the elbow (nearly) locked
+  if (f.phiMin < 45 && f.dz > 0.2 && fwd > 0.15) {
     if (!strike) return 'feint';
     return f.yAtZmax < -0.2 ? 'body jab' : 'jab';
   }
-  if (f.outMax > 0.55 && f.sweepIn > 0.15 && f.phiMin >= 40) return f.yAtOut < -0.3 ? 'body hook' : 'hook';
-  if (f.dyRise > 0.25 && f.phiMin >= 35 && f.dz > 0.12 && f.outMax < 0.5 && strike) return 'uppercut';
   if (f.dz > 0.06 && f.phiMin >= 40 && f.phiMin < 95 && f.durMs < 450 && f.sweepIn < 0.15) return 'feint';
   if (f.sweepIn > 0.08 && f.dz < 0.2 && f.phiMin > 80 && f.yMean > -0.15) return 'parry';
   return null;

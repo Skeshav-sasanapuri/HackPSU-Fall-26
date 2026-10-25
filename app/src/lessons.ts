@@ -1,6 +1,10 @@
 import { useEffect, useMemo } from 'react';
 import { ArmSession } from './armSession';
+import { Calibration } from './core/calibration';
 import { Detection } from './core/detector';
+import { HOLD_MS } from './core/hold';
+import { Clock } from './core/vec';
+import { sfx } from './sfx';
 import { COMBOS, Combo, MOVE_IDS, MOVE_INFO, MoveId } from './core/moves';
 import { DeviceHub, SimHub } from './link/hub';
 import { getStage } from './scene/stage';
@@ -57,6 +61,26 @@ export async function waitForMove(arm: ArmSession, m: MoveId, ms: number, signal
     }
   }
   return ds[0] ?? null;
+}
+
+/** 3-2-1, then records the calibration hold (arms straight out in front, palms down). Same steps as the Calibrate page. */
+export async function calibrateHold(arm: ArmSession, hub: DeviceHub, phoneAxis: Clock, usePhone: boolean, signal: AbortSignal,
+  onCount: (n: number) => void, onProgress: (k: number) => void): Promise<Calibration | { error: string }> {
+  arm.cancelHold();
+  if (hub instanceof SimHub) hub.holdFor(3000 + HOLD_MS + 500);
+  try {
+    for (const n of [3, 2, 1]) { onCount(n); sfx.tick(); await wait(1000, signal); }
+    onCount(0); sfx.go();
+    arm.beginHold();
+    const t0 = performance.now();
+    for (;;) {
+      const k = (performance.now() - t0) / HOLD_MS;
+      onProgress(Math.min(1, k));
+      if (k >= 1) break;
+      await wait(50, signal);
+    }
+  } catch (e) { arm.cancelHold(); throw e; }
+  return arm.endHold(phoneAxis, usePhone);
 }
 
 /** ms until the hand is back in the guard (null if it never comes back within `ms`). */

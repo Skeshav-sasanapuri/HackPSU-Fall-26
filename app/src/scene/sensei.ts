@@ -5,6 +5,11 @@ import { Fighter } from './fighter';
 
 /* Plays textbook moves on the coach. Keyframes are in the heading frame with the lead arm on +x; `side` is the
  * coach's arm that leads on screen (the same side the student's boxer leads with, so the student copies naturally). */
+/** move -> the Mixamo clips that show it (moves without one fall back to keyframes) */
+const DEMO_CLIPS: Partial<Record<MoveId, string[]>> = {
+  jab: ['jab'], 'double jab': ['jab', 'jab'], 'body jab': ['body_jab'], hook: ['hook'], uppercut: ['uppercut'], 'high guard': ['block'],
+};
+
 export class SenseiPlayer {
   private keys: Key[] | null = null;
   private t = 0;
@@ -19,6 +24,19 @@ export class SenseiPlayer {
 
   /** a whole-body clip on the rigged coach (talking, clapping); a no-op on the built-in figure */
   gesture(name: string): Promise<void> { return this.fighter().gesture?.(name) ?? Promise.resolve(); }
+
+  /** Demonstrates moves one after another: the rigged coach's Mixamo clip where there is one (mirrored to lead
+   * with `side`), otherwise the built-in keyframes. `speed` 1 is full speed. */
+  async demo(moves: MoveId[], speed: number, side: Side) {
+    for (const m of moves) {
+      const f = this.fighter(), clips = DEMO_CLIPS[m];
+      if (clips && f.gesture && clips.every((c) => f.hasClip?.(c))) {
+        for (const c of clips) await f.gesture(c, { speed, side });
+      } else {
+        await this.playMove(m, speed * 0.75);
+      }
+    }
+  }
 
   play(keys: Key[], dur: number, speed = 1): Promise<void> {
     this.done?.();
