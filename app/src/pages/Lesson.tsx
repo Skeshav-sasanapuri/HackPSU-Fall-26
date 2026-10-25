@@ -119,7 +119,7 @@ function Runner({ lesson }: { lesson: LessonT }) {
         for (const [i, speed] of [0.8, 1.1].entries()) {
           setCaption(i === 0 ? 'Slow first' : 'Full speed');
           setSub(isCombo ? lesson.moves.map((x) => MOVE_INFO[x].name).join(' → ') : info.keys.join('  ·  '));
-          voice.say(i === 0 ? (isCombo ? lesson.title : info.keys[0]) : 'Now at full speed.');
+          voice.say(i === 0 ? (isCombo ? `Watch. ${lesson.title}` : info.keys[0]) : 'Now at full speed.');
           await sensei.demo(lesson.moves, speed, stage.boxer.lead);
           await wait(450, sig);
         }
