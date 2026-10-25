@@ -336,3 +336,10 @@ input[type=range].skin::-moz-range-thumb, input[type=range].hue::-moz-range-thum
 .report-md h2, .report-md h3 { font-family: var(--display); text-transform: uppercase; letter-spacing: .05em; color: var(--red); margin: 18px 0 4px; font-size: 22px; }
 .report-md p, .report-md li { line-height: 1.5; margin: 4px 0; }
 .report-foot { display: flex; gap: 10px; justify-content: flex-end; padding: 10px 18px; border-top: 3px solid var(--ink); }
+
+/* combo tries: one chip per punch, filled as they land */
+.combochips { display: flex; gap: 8px; justify-content: center; margin-top: 8px; flex-wrap: wrap; }
+.combochips span { display: flex; flex-direction: column; align-items: center; padding: 4px 12px; border: 3px solid var(--ink); background: var(--paper); font-family: var(--display); font-weight: 800; text-transform: uppercase; letter-spacing: .04em; font-size: 18px; }
+.combochips span.ok { background: #2e6b34; color: var(--paper); }
+.combochips span.bad { background: var(--red); color: var(--paper); }
+.combochips small { font-size: 11px; letter-spacing: .02em; text-transform: none; font-family: inherit; font-weight: 700; }

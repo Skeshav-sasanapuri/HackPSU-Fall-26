@@ -54,6 +54,26 @@ export function collectMoves(arm: ArmSession, ms: number, signal: AbortSignal, e
 const INCIDENTAL: MoveId[] = ['feint', 'parry', 'high guard', 'elbow block'];
 export const deliberate = (expected: MoveId[]) => (d: Detection) => !INCIDENTAL.includes(d.move) || expected.includes(d.move);
 
+/** A combo's punches in order. Each deliberate move fills the next slot (a double jab fills two jab slots); a pause
+ * of `resetMs` part way through starts the combo over. `onStep` gets the moves so far, for the progress chips. */
+export function collectCombo(arm: ArmSession, moves: MoveId[], signal: AbortSignal, onStep: (got: Detection[]) => void, resetMs = 3000): Promise<Detection[]> {
+  const keep = deliberate(moves);
+  return new Promise((res, rej) => {
+    let got: Detection[] = [];
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const off = arm.onMove((d) => {
+      if (!keep(d)) return;
+      const parts = d.move === 'double jab' && !moves.includes('double jab') ? [{ ...d, move: 'jab' as MoveId }, { ...d, move: 'jab' as MoveId }] : [d];
+      for (const p of parts) if (got.length < moves.length) got.push(p);
+      onStep([...got]);
+      clearTimeout(timer);
+      if (got.length >= moves.length) { off(); res(got); return; }
+      timer = setTimeout(() => { got = []; onStep([]); }, resetMs);
+    });
+    signal.addEventListener('abort', () => { clearTimeout(timer); off(); rej(new Cancelled()); }, { once: true });
+  });
+}
+
 /** First deliberate attempt at `m` (ms = 0 waits as long as it takes); two jabs in quick succession count as a double jab. */
 export async function waitForMove(arm: ArmSession, m: MoveId, ms: number, signal: AbortSignal): Promise<Detection | null> {
   const ds = await collectMoves(arm, ms, signal, (ds) => {

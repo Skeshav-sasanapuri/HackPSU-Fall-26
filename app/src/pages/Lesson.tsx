@@ -4,12 +4,11 @@ import { useCalibration } from '../armSession';
 import { Burst, HudChips } from '../components/Hud';
 import { Stars } from '../components/Stars';
 import { useStageConfig } from '../components/StageView';
-import { Detection } from '../core/detector';
-import { MOVE_INFO } from '../core/moves';
+import { MOVE_INFO, MoveId } from '../core/moves';
 import { Attempt, scoreAttempt, stars } from '../core/score';
 import { SessionTally, useHistory } from '../history';
 import { useArm, useHub } from '../hubContext';
-import { Cancelled, LESSONS, Lesson as LessonT, calibrateHold, collectMoves, deliberate, lessonById, simDo, timeToGuard, useSensei, useSimPuppet, wait, waitForMove } from '../lessons';
+import { Cancelled, LESSONS, Lesson as LessonT, calibrateHold, collectCombo, lessonById, simDo, timeToGuard, useSensei, useSimPuppet, wait, waitForMove } from '../lessons';
 import { getStage } from '../scene/stage';
 import { useLink } from '../components/SensorGuard';
 import { sfx } from '../sfx';
@@ -50,6 +49,8 @@ function Runner({ lesson }: { lesson: LessonT }) {
   const [error, setError] = useState('');
   const [tryN, setTryN] = useState(0);
   const [attempts, setAttempts] = useState<Attempt[]>([]);
+  /** combo tries: what has been thrown so far, slot by slot */
+  const [comboGot, setComboGot] = useState<MoveId[]>([]);
   const [last, setLast] = useState<Attempt | null>(null);
   const [pops, setPops] = useState<Pop[]>([]);
   const calibrated = useRef(false);
@@ -130,7 +131,7 @@ function Runner({ lesson }: { lesson: LessonT }) {
       setPhase('try');
       for (let r = 0; r < TRIES; r++) {
         setTryN(r + 1);
-        setCaption('Your turn'); setSub(`Try ${r + 1} of ${TRIES}: ${lesson.title.toLowerCase()}. Take your time.`);
+        setCaption('Your turn'); setSub(isCombo ? `Try ${r + 1} of ${TRIES}: throw all ${lesson.moves.length} in a row. Take your time.` : `Try ${r + 1} of ${TRIES}: ${lesson.title.toLowerCase()}. Take your time.`);
         voice.say(r === 0 ? `Your turn. ${isCombo ? lesson.title : info.cue}` : isCombo ? 'Again.' : info.cue);
         let a: Attempt;
         // sim only: the puppet repeats the move until it is recognised (a real user simply throws again)
@@ -144,8 +145,9 @@ function Runner({ lesson }: { lesson: LessonT }) {
           a = scoreAttempt(m, d, { returnMs: ret });
         } else {
           simDo(hub, lesson.moves, 600);
-          const ds = await collectMoves(arm, 0, sig, (got) => got.length >= lesson.moves.length, deliberate(lesson.moves));
-          const parts = lesson.moves.map((x, i) => scoreAttempt(x, (ds[i] as Detection | undefined) ?? null));
+          setComboGot([]);
+          const ds = await collectCombo(arm, lesson.moves, sig, (got) => setComboGot(got.map((d) => d.move)));
+          const parts = lesson.moves.map((x, i) => scoreAttempt(x, ds[i] ?? null));
           const all = parts.every((p) => p.correct);
           const bad = parts.find((p) => !p.correct);
           a = {
@@ -213,6 +215,18 @@ function Runner({ lesson }: { lesson: LessonT }) {
         <div className="callout">
           <div key={caption} className={`inked ${phase === 'try' ? 'red big' : ''}`}>{caption}</div>
           {sub && <div className="paper plain sub">{sub}</div>}
+          {phase === 'try' && isCombo && (
+            <div className="combochips">
+              {lesson.moves.map((x, i) => {
+                const got = comboGot[i];
+                return (
+                  <span key={i} className={got == null ? '' : got === x ? 'ok' : 'bad'}>
+                    {MOVE_INFO[x].name}{got != null && got !== x && <small>got {MOVE_INFO[got].name.toLowerCase()}</small>}
+                  </span>
+                );
+              })}
+            </div>
+          )}
           {phase === 'try' && <div className="repdots">{Array.from({ length: TRIES }, (_, i) => <i key={i} className={i < tryN ? 'f' : ''} />)}</div>}
         </div>
       )}

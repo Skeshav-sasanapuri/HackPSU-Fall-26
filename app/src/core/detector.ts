@@ -86,29 +86,55 @@ export class MoveDetector {
     }
     this.seg.push(s);
     if (v < END) this.below ??= t; else this.below = null;
+    // a combo thrown without a pause: cut between the punches
+    const cut = comboCut(this.seg);
+    if (cut > 0) {
+      const first = this.seg.slice(0, cut + 1);
+      this.seg = this.seg.slice(cut);
+      this.emit(first, first[first.length - 1].t, out);
+      return out;
+    }
     const ended = (this.below != null && t - this.below >= END_MS) || t - this.seg[0].t > MAX_MS;
     if (!ended) return out;
     const seg = this.seg;
     this.seg = null;
+    this.emit(seg, t, out);
+    return out;
+  }
+
+  private emit(seg: Sample[], t: number, out: Detection[]) {
     const f = features(seg);
     this.last = f;
     const move = classify(f);
     // leaving a cover is just the return to the guard, except a real punch out of a high guard (a tight guard can look like one)
     const fromHold = this.fromHold;
     this.fromHold = null;
-    if (!move || (fromHold && (fromHold !== 'high guard' || f.vPeak < MIN_STRIKE_SPEED))) return out;
-    const peak = seg.reduce((a, b) => (b.v > a.v ? b : a));
+    if (!move || (fromHold && (fromHold !== 'high guard' || f.vPeak < MIN_STRIKE_SPEED))) return;
     const ext = seg.reduce((a, b) => (b.phi < a.phi ? b : a));
     const outS = seg.reduce((a, b) => (b.U[0] > a.U[0] ? b : a));
     const base = {
       t: seg[0].t, tEnd: t, peakSpeed: f.vPeak, forceN: estimateForce(f.vPeak, this.bodyKg), power: powerScore(f.vPeak, this.bodyKg),
       extensionDeg: f.phiMin, flareDeg: Math.max(0, Math.asin(Math.max(-1, Math.min(1, ext.U[0]))) / DEG), hookElbowDeg: outS.phi,
     };
-    void peak;
     if (move === 'jab' && f.jabs >= 2) out.push({ ...base, move: 'double jab' });
     else out.push({ ...base, move });
-    return out;
   }
+}
+
+/* Where to cut a moving segment that holds two punches: after a fast motion, the speed dipped while the elbow was
+ * bent back in (the guard), and now the hand is speeding up again. The stop at full extension of a jab does not
+ * count (the elbow is straight there). Also cuts a pull-back off the start of the next punch. Returns the sample
+ * index or -1. */
+export function comboCut(seg: Sample[]): number {
+  if (seg.length < 6) return -1;
+  let peak = 0, m = -1, vMin = Infinity;
+  for (let i = 0; i < seg.length; i++) {
+    const s = seg[i];
+    if (s.v > peak && m < 0) peak = s.v;
+    if (peak >= MIN_STRIKE_SPEED && s.phi > 75 && s.v < vMin) { vMin = s.v; m = i; }
+  }
+  const v = seg[seg.length - 1].v;
+  return m > 0 && m < seg.length - 1 && vMin < 0.45 * peak && v > vMin + 1 ? m : -1;
 }
 
 function holdPose(s: Sample): MoveId | null {
