@@ -33,7 +33,7 @@ export class SenseiPlayer {
       if (clips && f.gesture && clips.every((c) => f.hasClip?.(c))) {
         for (const c of clips) await f.gesture(c, { speed, side });
       } else {
-        await this.playMove(m, speed * 0.75);
+        await this.playMove(m, speed * 0.9);
       }
     }
   }

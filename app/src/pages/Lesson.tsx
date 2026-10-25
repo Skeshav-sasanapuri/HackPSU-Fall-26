@@ -115,13 +115,13 @@ function Runner({ lesson }: { lesson: LessonT }) {
         setPhase('watch');
         stage.spotlight(true);
         setCaption('Watch me'); setSub('');
-        await wait(1000, sig);
-        for (const [i, speed] of [0.55, 1].entries()) {
+        await wait(600, sig);
+        for (const [i, speed] of [0.8, 1.1].entries()) {
           setCaption(i === 0 ? 'Slow first' : 'Full speed');
           setSub(isCombo ? lesson.moves.map((x) => MOVE_INFO[x].name).join(' → ') : info.keys.join('  ·  '));
           voice.say(i === 0 ? (isCombo ? lesson.title : info.keys[0]) : 'Now at full speed.');
           await sensei.demo(lesson.moves, speed, stage.boxer.lead);
-          await wait(700, sig);
+          await wait(450, sig);
         }
         stage.spotlight(false);
         await wait(900, sig);

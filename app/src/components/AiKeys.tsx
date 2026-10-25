@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { pickModel } from '../ai/gemini';
 import { useKeys } from '../ai/keys';
-import { voice } from '../voice';
 
-/* Optional Gemini / ElevenLabs keys on the Connect screen. Remembered by this browser until "Forget". */
+/* Optional Gemini key on the Connect screen. Remembered by this browser until "Forget". */
 function KeyField({ label, saved, onSave, onForget, check, placeholder }: {
   label: string; saved: string; placeholder: string;
   onSave: (k: string) => void; onForget: () => void; check: () => Promise<string>;
@@ -33,19 +32,16 @@ function KeyField({ label, saved, onSave, onForget, check, placeholder }: {
 }
 
 export function AiKeys() {
-  const { gemini, eleven, set } = useKeys();
+  const { gemini, set } = useKeys();
   return (
     <section className="aikeys paper">
       <div className="aikeys-head">
-        <span className="label">Optional · AI extras</span>
-        <span className="hint">Not required. Add a Gemini key for detailed progress reports, and an ElevenLabs key for a real coach voice. Keys stay in this browser and go only to Google or ElevenLabs.</span>
+        <span className="label">Optional · Gemini reports</span>
+        <span className="hint">Not required. Add a Gemini API key for detailed progress reports. It stays in this browser and goes only to Google.</span>
       </div>
       <KeyField label="Gemini" saved={gemini} placeholder="Gemini API key (aistudio.google.com)"
         onSave={(k) => set({ gemini: k })} onForget={() => set({ gemini: '' })}
         check={async () => { try { await pickModel(gemini); return ''; } catch (e) { return (e as Error).message; } }} />
-      <KeyField label="ElevenLabs" saved={eleven} placeholder="ElevenLabs API key"
-        onSave={(k) => set({ eleven: k })} onForget={() => set({ eleven: '' })}
-        check={() => voice.test('Hands up. Chin down. Let us work.')} />
     </section>
   );
 }
