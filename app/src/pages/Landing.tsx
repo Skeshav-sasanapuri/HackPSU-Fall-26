@@ -10,7 +10,7 @@ export function Landing() {
 
   const start = () => {
     fresh();
-    nav(done ? '/connect' : '/setup');
+    nav('/setup'); // always the weigh-in; a returning boxer finds their saved values filled in
   };
 
   return (
